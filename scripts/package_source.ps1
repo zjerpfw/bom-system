@@ -62,3 +62,4 @@ if (!(Test-Path -LiteralPath $zipPath)) {
 Copy-Item -LiteralPath $stagingDir -Destination $packageDir -Recurse -Force
 Remove-Item -LiteralPath $stagingDir -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host "Source package completed: $zipPath"
+exit 0
