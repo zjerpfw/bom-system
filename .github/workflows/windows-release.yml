@@ -1,0 +1,98 @@
+name: Windows EXE Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      include_paddleocr_models:
+        description: "同时打包PaddleOCR离线模型，耗时较长"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run backend tests
+        run: python -m pytest backend\tests -q
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Package Windows EXE
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}"
+          if ("${{ github.ref_type }}" -ne "tag") {
+            $version = "${{ github.run_number }}"
+          }
+          .\scripts\package_windows.ps1 -Version $version
+
+      - name: Package source code
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}"
+          if ("${{ github.ref_type }}" -ne "tag") {
+            $version = "${{ github.run_number }}"
+          }
+          .\scripts\package_source.ps1 -Version $version
+
+      - name: Package PaddleOCR models
+        if: github.event_name == 'workflow_dispatch' && inputs.include_paddleocr_models == 'true'
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}"
+          if ("${{ github.ref_type }}" -ne "tag") {
+            $version = "${{ github.run_number }}"
+          }
+          .\scripts\package_paddleocr_models.ps1 -Version $version
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bom-system-release-files
+          path: release/*.zip
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.zip
+          generate_release_notes: true
