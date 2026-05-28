@@ -1,7 +1,9 @@
 param(
     [string]$Version = "local",
     [string]$OutputDir = "release",
-    [switch]$ReuseBuildVenv
+    [switch]$ReuseBuildVenv,
+    [switch]$SkipFrontendBuild,
+    [string]$ExistingPython = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -38,13 +40,34 @@ New-Item -ItemType Directory -Force -Path $serverDir, $dataDir, $modelsDir | Out
 
 Write-Host "Installing and building frontend..."
 Push-Location $frontendDir
-Invoke-Checked "Install frontend dependencies" { pnpm install --frozen-lockfile }
-Invoke-Checked "Build frontend" { pnpm build }
+if ($SkipFrontendBuild) {
+    if (!(Test-Path -LiteralPath (Join-Path $frontendDistDir "index.html"))) {
+        throw "Frontend dist does not exist. Run pnpm build first or remove -SkipFrontendBuild."
+    }
+    Write-Host "Using existing frontend dist..."
+} else {
+    Invoke-Checked "Install frontend dependencies" { pnpm install --frozen-lockfile }
+    Invoke-Checked "Build frontend" { pnpm build }
+}
 Pop-Location
 
 Write-Host "Installing backend dependencies..."
 Push-Location $backendDir
-if ($ReuseBuildVenv -and (Test-Path -LiteralPath $buildPython)) {
+if ($ExistingPython -ne "") {
+    $buildPython = $ExistingPython
+    if (!(Test-Path -LiteralPath $buildPython)) {
+        throw "Existing Python does not exist: $buildPython"
+    }
+    & $buildPython -c "import PyInstaller" *> $null
+    if ($LASTEXITCODE -ne 0) {
+        & $buildPython -m pip --version *> $null
+        if ($LASTEXITCODE -ne 0) {
+            Invoke-Checked "Enable pip" { & $buildPython -m ensurepip --upgrade }
+        }
+        Invoke-Checked "Install PyInstaller into existing Python" { & $buildPython -m pip install pyinstaller }
+    }
+    Write-Host "Using existing Python for PyInstaller: $buildPython"
+} elseif ($ReuseBuildVenv -and (Test-Path -LiteralPath $buildPython)) {
     Write-Host "Reusing backend build venv..."
 } else {
     Remove-Item -LiteralPath $buildVenvDir -Recurse -Force -ErrorAction SilentlyContinue

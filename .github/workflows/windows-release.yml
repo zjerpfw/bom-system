@@ -71,7 +71,7 @@ jobs:
           if ("${{ github.ref_type }}" -ne "tag") {
             $version = "${{ github.run_number }}"
           }
-          .\scripts\package_windows.ps1 -Version $version
+          .\scripts\package_windows.ps1 -Version $version -SkipFrontendBuild -ExistingPython (Get-Command python).Source
 
       - name: Package source code
         shell: pwsh
