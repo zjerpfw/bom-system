@@ -160,6 +160,6 @@ async def test_match_material_uses_rule_candidates_when_ai_disabled(settings_ses
 
     assert result.matched_code == "M001"
     assert result.matched_name == "铜柱"
-    assert result.match_level == "rule"
+    assert result.match_level == "fuzzy"
     assert result.confidence >= 0.70
     assert result.candidates[0]["code"] == "M001"

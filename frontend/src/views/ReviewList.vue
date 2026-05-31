@@ -35,6 +35,7 @@ function confidenceColor(value: number) {
 function matchLabel(level?: string | null) {
   const labels: Record<string, string> = {
     exact: "精确",
+    fuzzy: "模糊",
     embedding: "语义",
     llm: "AI推断",
     rule: "规则",

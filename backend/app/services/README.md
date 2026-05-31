@@ -8,7 +8,7 @@
 
 - `material_service.py`：负责 ERP 物料 CSV 导入、文本向量生成、FAISS 索引构建和索引加载。
 - `embedding_service.py`：负责统一适配 OpenAI 兼容接口、阿里百炼 DashScope 和百度千帆向量接口。
-- `match_service.py`：负责物料命名的精确匹配、向量匹配、GPT候选判断、匹配结果落库、确认和拒绝操作。
+- `match_service.py`：负责物料命名的历史映射、编码/名称精确匹配、本地模糊匹配、向量匹配、GPT候选判断、匹配结果落库、确认和拒绝操作。
 - `ocr_service.py`：负责图像预处理、PaddleOCR识别、百度OCR表格识别、OCR文本归一化和GPT结构化提取。
 - `export_service.py`：负责把已确认BOM、待处理项、缺失物料和操作日志生成多Sheet Excel导入包。
 
@@ -29,6 +29,8 @@ CSV 导入要求列名为：`编码`、`名称`、`规格`、`单位`、`类别`
 ## 匹配结果落库
 
 OCR 提取后的 BOM 数据会进入 `process_extracted_bom`。系统按置信度自动分类：`0.90` 及以上自动确认并更新 `name_mapping`，`0.70` 到 `0.89` 进入待审核队列，低于 `0.70` 或未匹配时同时写入 `missing_materials`。
+
+匹配顺序优先使用不消耗 token 的本地能力：历史命名映射、物料编码/名称精确匹配、本地模糊匹配。只有本地候选不够明确时，才继续调用向量接口和 GPT 判断。
 
 待审核列表的候选物料保存在 `bom_items.candidates_json`，匹配来源保存在 `bom_items.match_level`，便于前端审核界面分页展示。
 

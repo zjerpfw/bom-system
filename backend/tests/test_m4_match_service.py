@@ -68,6 +68,41 @@ async def test_exact_match_falls_back_to_material_name(test_session):
 
 
 @pytest.mark.asyncio
+async def test_exact_match_supports_material_code(test_session):
+    from app.services.match_service import exact_match
+
+    result = await exact_match("M001", test_session)
+
+    assert result.matched_code == "M001"
+    assert result.matched_name == "铜柱"
+    assert result.match_level == "exact"
+
+
+@pytest.mark.asyncio
+async def test_match_material_uses_local_fuzzy_before_ai(test_session, monkeypatch):
+    from app.services import match_service
+
+    def fail_embedding(raw_name, db, app_state, top_k=5):
+        raise AssertionError("本地模糊命中时不应调用向量接口")
+
+    def fail_llm(raw_name, candidates):
+        raise AssertionError("本地模糊命中时不应调用LLM")
+
+    monkeypatch.setattr(match_service, "embedding_match", fail_embedding)
+    monkeypatch.setattr(match_service, "llm_judge", fail_llm)
+
+    result = await match_service.match_material(
+        "铜柱 M3×10",
+        test_session,
+        SimpleNamespace(ai_enabled=True),
+    )
+
+    assert result.matched_code == "M001"
+    assert result.match_level == "fuzzy"
+    assert result.confidence >= 0.85
+
+
+@pytest.mark.asyncio
 async def test_embedding_match_uses_faiss_and_material_lookup(test_session, monkeypatch):
     from app.services import match_service
     from app.models.material import Material

@@ -32,6 +32,7 @@ MATCH_SYSTEM_PROMPT = """
 EMBEDDING_ACCEPT_SCORE = 0.85
 EMBEDDING_SCORE_GAP = 0.08
 RULE_ACCEPT_SCORE = 0.74
+FUZZY_ACCEPT_SCORE = 0.85
 
 
 def call_create_openai_client(api_key: str | None = None, base_url: str | None = None):
@@ -105,7 +106,9 @@ async def exact_match(raw_name: str, db: AsyncSession) -> MatchResult | None:
             candidates=[],
         )
 
-    material_result = await db.execute(select(Material).where(Material.name == raw_name).limit(1))
+    material_result = await db.execute(
+        select(Material).where(or_(Material.code == raw_name, Material.name == raw_name)).limit(1)
+    )
     material = material_result.scalar_one_or_none()
     if material:
         return MatchResult(
@@ -132,7 +135,22 @@ async def get_materials_by_code(db: AsyncSession, codes: list[str]) -> dict[str,
 def normalize_match_text(value: str | None) -> str:
     """规范化匹配文本。"""
     text = unicodedata.normalize("NFKC", value or "").lower()
-    return re.sub(r"\s+", "", text)
+    text = text.replace("×", "x").replace("*", "x")
+    return re.sub(r"[\s\-_/（）()]+", "", text)
+
+
+def compact_match_tokens(value: str | None) -> set[str]:
+    """提取用于模糊匹配的数字、字母和中文片段。"""
+    text = unicodedata.normalize("NFKC", value or "").lower()
+    text = text.replace("×", "x").replace("*", "x")
+    return set(re.findall(r"[a-z]+|\d+(?:\.\d+)?|[\u4e00-\u9fff]+", text))
+
+
+def sequence_similarity(left: str, right: str) -> float:
+    """计算两个短文本的序列相似度。"""
+    if not left or not right:
+        return 0.0
+    return len(set(left) & set(right)) / max(len(set(left) | set(right)), 1)
 
 
 def token_similarity(raw_name: str, material: Material) -> float:
@@ -140,19 +158,32 @@ def token_similarity(raw_name: str, material: Material) -> float:
     raw_text = normalize_match_text(raw_name)
     name_text = normalize_match_text(material.name)
     spec_text = normalize_match_text(material.spec)
+    code_text = normalize_match_text(material.code)
     if not raw_text or not name_text:
         return 0.0
+
+    if raw_text == code_text:
+        return 1.0
+    if code_text and code_text in raw_text:
+        return 0.96
+
     score = 0.0
     if raw_text == name_text:
-        score += 0.80
+        score += 0.86
     elif name_text in raw_text or raw_text in name_text:
-        score += 0.62
+        score += 0.68
     else:
-        common_chars = set(raw_text) & set(name_text)
-        score += min(len(common_chars) / max(len(set(name_text)), 1), 1.0) * 0.42
+        score += sequence_similarity(raw_text, name_text) * 0.56
+
     if spec_text and spec_text in raw_text:
-        score += 0.24
-    return round(min(score, 0.88), 4)
+        score += 0.22
+    else:
+        raw_tokens = compact_match_tokens(raw_name)
+        spec_tokens = compact_match_tokens(material.spec)
+        if raw_tokens and spec_tokens:
+            score += min(len(raw_tokens & spec_tokens) / max(len(spec_tokens), 1), 1.0) * 0.18
+
+    return round(min(score, 0.96), 4)
 
 
 async def rule_match(raw_name: str, db: AsyncSession, top_k: int = 5) -> list[dict]:
@@ -187,6 +218,20 @@ async def rule_match(raw_name: str, db: AsyncSession, top_k: int = 5) -> list[di
             }
         )
     return sorted(candidates, key=lambda item: item["score"], reverse=True)[:top_k]
+
+
+async def fuzzy_match(raw_name: str, db: AsyncSession, top_k: int = 5) -> list[dict]:
+    """用本地准确和模糊规则生成候选物料。"""
+    return await rule_match(raw_name, db, top_k=top_k)
+
+
+def should_accept_fuzzy(candidates: list[dict]) -> bool:
+    """判断本地模糊匹配是否足够明确。"""
+    if not candidates:
+        return False
+    first_score = float(candidates[0].get("score") or 0.0)
+    second_score = float(candidates[1].get("score") or 0.0) if len(candidates) > 1 else 0.0
+    return first_score >= FUZZY_ACCEPT_SCORE and (first_score - second_score) >= 0.05
 
 
 async def embedding_match(raw_name: str, db: AsyncSession, app_state, top_k: int = 5) -> list[dict]:
@@ -288,10 +333,22 @@ async def match_material(raw_name: str, db: AsyncSession, app_state) -> MatchRes
     if ai_enabled is None:
         ai_enabled = True
 
+    fuzzy_candidates = await fuzzy_match(raw_name, db, top_k=5)
+    if should_accept_fuzzy(fuzzy_candidates):
+        best = fuzzy_candidates[0]
+        return MatchResult(
+            raw_name=raw_name,
+            matched_code=best.get("code"),
+            matched_name=best.get("name"),
+            matched_spec=best.get("spec"),
+            confidence=float(best.get("score") or 0.0),
+            match_level="fuzzy",
+            candidates=fuzzy_candidates,
+        )
+
     if not ai_enabled:
-        candidates = await rule_match(raw_name, db, top_k=5)
-        if candidates and float(candidates[0].get("score") or 0) >= RULE_ACCEPT_SCORE:
-            best = candidates[0]
+        if fuzzy_candidates and float(fuzzy_candidates[0].get("score") or 0) >= RULE_ACCEPT_SCORE:
+            best = fuzzy_candidates[0]
             return MatchResult(
                 raw_name=raw_name,
                 matched_code=best.get("code"),
@@ -299,9 +356,9 @@ async def match_material(raw_name: str, db: AsyncSession, app_state) -> MatchRes
                 matched_spec=best.get("spec"),
                 confidence=float(best.get("score") or 0.0),
                 match_level="rule",
-                candidates=candidates,
+                candidates=fuzzy_candidates,
             )
-        return MatchResult(raw_name, None, None, None, 0.0, "none", candidates)
+        return MatchResult(raw_name, None, None, None, 0.0, "none", fuzzy_candidates)
 
     candidate_result = embedding_match(raw_name, db, app_state, top_k=5)
     candidates = await candidate_result if inspect.isawaitable(candidate_result) else candidate_result
@@ -322,9 +379,8 @@ async def match_material(raw_name: str, db: AsyncSession, app_state) -> MatchRes
         if llm_result.matched_code:
             return llm_result
 
-    rule_candidates = await rule_match(raw_name, db, top_k=5)
-    if rule_candidates and float(rule_candidates[0].get("score") or 0) >= RULE_ACCEPT_SCORE:
-        best = rule_candidates[0]
+    if fuzzy_candidates and float(fuzzy_candidates[0].get("score") or 0) >= RULE_ACCEPT_SCORE:
+        best = fuzzy_candidates[0]
         return MatchResult(
             raw_name=raw_name,
             matched_code=best.get("code"),
@@ -332,7 +388,7 @@ async def match_material(raw_name: str, db: AsyncSession, app_state) -> MatchRes
             matched_spec=best.get("spec"),
             confidence=float(best.get("score") or 0.0),
             match_level="rule",
-            candidates=rule_candidates,
+            candidates=fuzzy_candidates,
         )
 
     return MatchResult(
@@ -342,7 +398,7 @@ async def match_material(raw_name: str, db: AsyncSession, app_state) -> MatchRes
         matched_spec=None,
         confidence=0.0,
         match_level="none",
-        candidates=candidates or rule_candidates,
+        candidates=candidates or fuzzy_candidates,
     )
 
 
