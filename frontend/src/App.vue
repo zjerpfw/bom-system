@@ -8,6 +8,7 @@
       <van-tabbar-item to="/" icon="home-o">首页</van-tabbar-item>
       <van-tabbar-item to="/review" icon="passed">审核</van-tabbar-item>
       <van-tabbar-item to="/upload" icon="upgrade">上传</van-tabbar-item>
+      <van-tabbar-item to="/materials" icon="records-o">物料</van-tabbar-item>
       <van-tabbar-item to="/settings" icon="setting-o">设置</van-tabbar-item>
     </van-tabbar>
   </div>

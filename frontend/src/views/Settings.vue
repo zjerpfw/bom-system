@@ -161,6 +161,7 @@ onMounted(loadSettings);
       </section>
 
       <van-cell-group class="surface link-group" :border="false">
+        <van-cell title="物料库维护" label="上传ERP商品CSV并重建匹配索引" is-link to="/materials" />
         <van-cell title="缺失物料" label="查看待新建物料" is-link to="/missing" />
       </van-cell-group>
 

@@ -101,6 +101,19 @@ export interface SystemSettingsData {
   >;
 }
 
+export interface MaterialStats {
+  material_total: number;
+  index_ready: boolean;
+  index_count: number;
+}
+
+export interface MaterialImportResult {
+  total: number;
+  success: number;
+  skipped: number;
+  errors: string[];
+}
+
 const http = axios.create({
   baseURL: "/api",
   timeout: 60000,
@@ -210,6 +223,20 @@ export function getSystemSettings() {
 
 export function updateSystemSettings(settings: Record<string, string | boolean>, operator = "前端设置") {
   return http.post<SystemSettingsData, SystemSettingsData>("/settings/system", { settings, operator });
+}
+
+export function getMaterialStats() {
+  return http.get<MaterialStats, MaterialStats>("/materials/stats");
+}
+
+export function importMaterials(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return http.post<MaterialImportResult, MaterialImportResult>("/materials/import", formData);
+}
+
+export function buildMaterialIndex() {
+  return http.post<{ status: string }, { status: string }>("/materials/build-index");
 }
 
 export async function downloadBom(productName: string) {

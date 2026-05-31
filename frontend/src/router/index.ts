@@ -28,6 +28,12 @@ const router = createRouter({
       meta: { title: "上传" },
     },
     {
+      path: "/materials",
+      name: "materials",
+      component: () => import("@/views/Materials.vue"),
+      meta: { title: "物料库" },
+    },
+    {
       path: "/settings",
       name: "settings",
       component: () => import("@/views/Settings.vue"),
