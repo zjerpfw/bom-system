@@ -58,10 +58,13 @@ flowchart LR
 - `OPENAI_BASE_URL`：使用OpenAI兼容中转站时填写；不用中转站时留空。
 - `OPENAI_CHAT_MODEL`：聊天/推理模型，默认 `gpt-4o-mini`，使用当前中转站可填 `gpt-5.5`。
 - `OPENAI_EMBEDDING_MODEL`：向量模型，默认 `text-embedding-3-small`。
+- `EMBEDDING_PROVIDER`：向量供应商，可填 `openai`、`dashscope`、`qianfan`。
 
 按需配置：
 
 - `BAIDU_OCR_API_KEY`、`BAIDU_OCR_SECRET_KEY`：需要百度表格OCR时填写。
+- `DASHSCOPE_API_KEY`：需要阿里百炼 `text-embedding-v4` 时填写。
+- `QIANFAN_API_KEY`：需要百度千帆 `embedding-v1` 时填写。
 - `API_KEY`：生产环境建议填写，填写后前端设置页也要填同一个密钥。
 
 如果使用中转站API：
@@ -75,12 +78,21 @@ OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 
 中转站需要兼容OpenAI接口，并支持你填写的聊天模型和向量模型。聊天模型不能替代向量模型，物料匹配索引仍需要 embedding 模型。
 
+国内向量服务推荐在前端「设置」页选择：
+
+- `兼容接口`：适合 OpenAI 或支持 `/v1/embeddings` 的中转站。
+- `阿里`：使用阿里百炼 DashScope 原生接口，默认 `text-embedding-v4`。
+- `百度`：使用百度千帆 v2 embeddings 接口，默认 `embedding-v1`。
+
+切换向量服务后，需要到「物料」页重新点击「重建AI匹配索引」，否则旧索引仍是上一次模型生成的向量。
+
 ### 2. 在前端设置运行模式
 
 打开底部「设置」页：
 
 - 关闭「AI增强能力」：系统使用规则提取和本地匹配，适合没有可用AI接口时先上线。
 - 开启「AI增强能力」：填写接口地址、接口密钥、聊天模型、向量模型后保存。
+- 向量服务可选「兼容接口」「阿里」「百度」，国内现场优先试阿里或百度。
 - 接口密钥保存后只显示已配置，不会明文回显。
 - 如果AI调用失败，上传和匹配流程会尽量降级到规则模式，不让审核流程中断。
 
@@ -274,7 +286,8 @@ http://127.0.0.1:8000/docs
 
 | 未配置项 | 影响 |
 | --- | --- |
-| `OPENAI_API_KEY` | GPT提取、向量生成、LLM判断不能真实调用；本地e2e脚本仍可离线验收 |
+| `OPENAI_API_KEY` | 兼容接口的GPT提取、向量生成、LLM判断不能真实调用；本地e2e脚本仍可离线验收 |
+| 阿里/百度向量密钥 | 对应国内向量供应商不能构建FAISS索引；可改回兼容接口或规则模式 |
 | 百度OCR密钥 | `mode=baidu` 不可用；普通PaddleOCR仍可用 |
 | `API_KEY` | 不影响开发；生产环境少一层接口保护 |
 | 未导入ERP物料 | 无法做有效匹配 |

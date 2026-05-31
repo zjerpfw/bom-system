@@ -133,8 +133,9 @@ PADDLEOCR_ASCII_CACHE_DIR=
 - 接口密钥：中转站或 OpenAI Key
 - 聊天模型：例如 `gpt-5.5`
 - 向量模型：例如 `text-embedding-3-small`
+- 向量服务：国内部署可选阿里 `text-embedding-v4` 或百度 `embedding-v1`
 
-注意：聊天模型不能替代向量模型。语义匹配索引需要可用的 `/v1/embeddings` 接口。
+注意：聊天模型不能替代向量模型。兼容接口需要可用的 `/v1/embeddings`；阿里和百度会走系统内置适配器，不要求它们伪装成 OpenAI 接口。
 
 如果客户现场不能联网，建议提前准备 PaddleOCR 离线模型包。复制完成后在 `server/.env` 中配置：
 
@@ -297,6 +298,7 @@ server/data/
 - 确认接口地址以 `/v1` 结尾。
 - 确认聊天模型能走 `/v1/chat/completions`。
 - 确认向量模型能走 `/v1/embeddings`。
+- 如果选择阿里或百度向量服务，确认对应密钥已保存，并在「物料」页重建AI匹配索引。
 
 ### 4. 百度OCR会不会产生费用
 

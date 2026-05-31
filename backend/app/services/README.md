@@ -6,7 +6,8 @@
 
 ## 当前服务
 
-- `material_service.py`：负责 ERP 物料 CSV 导入、OpenAI 向量生成、FAISS 索引构建和索引加载。
+- `material_service.py`：负责 ERP 物料 CSV 导入、文本向量生成、FAISS 索引构建和索引加载。
+- `embedding_service.py`：负责统一适配 OpenAI 兼容接口、阿里百炼 DashScope 和百度千帆向量接口。
 - `match_service.py`：负责物料命名的精确匹配、向量匹配、GPT候选判断、匹配结果落库、确认和拒绝操作。
 - `ocr_service.py`：负责图像预处理、PaddleOCR识别、百度OCR表格识别、OCR文本归一化和GPT结构化提取。
 - `export_service.py`：负责把已确认BOM、待处理项、缺失物料和操作日志生成多Sheet Excel导入包。
@@ -14,6 +15,16 @@
 CSV 导入要求列名为：`编码`、`名称`、`规格`、`单位`、`类别`。
 
 索引文件保存在 `backend/data/materials.faiss`，物料编码映射保存在 `backend/data/id_map.json`。
+
+## 向量供应商
+
+`embedding_service.py` 根据系统配置中的 `EMBEDDING_PROVIDER` 选择向量接口：
+
+- `openai`：OpenAI 官方或兼容中转站，使用 `OPENAI_BASE_URL`、`OPENAI_API_KEY`、`OPENAI_EMBEDDING_MODEL`。
+- `dashscope`：阿里百炼 DashScope 原生接口，使用 `DASHSCOPE_API_KEY` 和 `DASHSCOPE_EMBEDDING_MODEL`，默认 `text-embedding-v4`。
+- `qianfan`：百度千帆 v2 embeddings 接口，使用 `QIANFAN_API_KEY` 和 `QIANFAN_EMBEDDING_MODEL`，默认 `embedding-v1`。
+
+切换向量供应商或模型后，需要重新构建 FAISS 索引，确保物料库向量和查询向量来自同一个模型。
 
 ## 匹配结果落库
 

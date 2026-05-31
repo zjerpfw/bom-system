@@ -95,6 +95,9 @@ def test_settings_api_lists_updates_and_masks_secrets(tmp_path, monkeypatch):
                 "OPENAI_API_KEY": "sk-test-secret",
                 "OPENAI_CHAT_MODEL": "gpt-5.5",
                 "OPENAI_EMBEDDING_MODEL": "text-embedding-3-small",
+                "EMBEDDING_PROVIDER": "dashscope",
+                "DASHSCOPE_API_KEY": "dashscope-secret",
+                "DASHSCOPE_EMBEDDING_MODEL": "text-embedding-v4",
             },
             "operator": "管理员",
         },
@@ -107,7 +110,11 @@ def test_settings_api_lists_updates_and_masks_secrets(tmp_path, monkeypatch):
     assert data["runtime"]["ai_enabled"] is False
     assert data["runtime"]["openai_base_url"] == "https://fululai.cn/v1"
     assert data["runtime"]["openai_api_key_configured"] is True
+    assert data["runtime"]["embedding_provider"] == "dashscope"
+    assert data["runtime"]["dashscope_api_key_configured"] is True
+    assert data["runtime"]["dashscope_embedding_model"] == "text-embedding-v4"
     assert data["items"]["OPENAI_API_KEY"]["value"] == "********"
+    assert data["items"]["DASHSCOPE_API_KEY"]["value"] == "********"
     assert data["items"]["OPENAI_CHAT_MODEL"]["value"] == "gpt-5.5"
     main.app.dependency_overrides.clear()
 

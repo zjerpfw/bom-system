@@ -130,10 +130,14 @@ def test_material_routes_use_unified_response(tmp_path, monkeypatch):
 
     assert database_file.exists()
 
-    async def fake_build_embedding_index():
+    async def fake_build_embedding_index(embedding_provider=None):
         return None
 
     monkeypatch.setattr(materials, "async_build_embedding_index", fake_build_embedding_index)
+    async def fake_get_runtime_settings(db):
+        return type("RuntimeSettings", (), {"ai_enabled": True})()
+
+    monkeypatch.setattr(materials, "get_runtime_settings", fake_get_runtime_settings)
     build_response = client.post("/api/materials/build-index")
 
     assert build_response.status_code == 200

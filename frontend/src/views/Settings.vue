@@ -10,12 +10,23 @@ const openaiApiKey = ref("");
 const openaiChatModel = ref("gpt-5.5");
 const openaiEmbeddingModel = ref("text-embedding-3-small");
 const apiKeyConfigured = ref(false);
+const embeddingProvider = ref("openai");
+const dashscopeApiKey = ref("");
+const dashscopeBaseUrl = ref("https://dashscope.aliyuncs.com/api/v1");
+const dashscopeEmbeddingModel = ref("text-embedding-v4");
+const dashscopeApiKeyConfigured = ref(false);
+const qianfanApiKey = ref("");
+const qianfanBaseUrl = ref("https://qianfan.baidubce.com/v2");
+const qianfanEmbeddingModel = ref("embedding-v1");
+const qianfanApiKeyConfigured = ref(false);
 const loading = ref(false);
 const saving = ref(false);
 
 const runningMode = computed(() => (aiEnabled.value ? "AI增强模式" : "规则模式"));
 const runningModeType = computed(() => (aiEnabled.value ? "success" : "warning"));
 const secretPlaceholder = computed(() => (apiKeyConfigured.value ? "已配置，留空则不修改" : "未配置"));
+const dashscopeSecretPlaceholder = computed(() => (dashscopeApiKeyConfigured.value ? "已配置，留空则不修改" : "未配置"));
+const qianfanSecretPlaceholder = computed(() => (qianfanApiKeyConfigured.value ? "已配置，留空则不修改" : "未配置"));
 
 function saveFrontendApiKey() {
   if (apiKey.value.trim()) {
@@ -35,6 +46,13 @@ async function loadSettings() {
     openaiChatModel.value = data.runtime.openai_chat_model || "gpt-5.5";
     openaiEmbeddingModel.value = data.runtime.openai_embedding_model || "text-embedding-3-small";
     apiKeyConfigured.value = data.runtime.openai_api_key_configured;
+    embeddingProvider.value = data.runtime.embedding_provider || "openai";
+    dashscopeApiKeyConfigured.value = data.runtime.dashscope_api_key_configured;
+    dashscopeBaseUrl.value = data.runtime.dashscope_base_url || "https://dashscope.aliyuncs.com/api/v1";
+    dashscopeEmbeddingModel.value = data.runtime.dashscope_embedding_model || "text-embedding-v4";
+    qianfanApiKeyConfigured.value = data.runtime.qianfan_api_key_configured;
+    qianfanBaseUrl.value = data.runtime.qianfan_base_url || "https://qianfan.baidubce.com/v2";
+    qianfanEmbeddingModel.value = data.runtime.qianfan_embedding_model || "embedding-v1";
   } catch {
     showFailToast("系统配置加载失败");
   } finally {
@@ -50,16 +68,32 @@ async function saveSystemSettings() {
       OPENAI_BASE_URL: openaiBaseUrl.value.trim(),
       OPENAI_CHAT_MODEL: openaiChatModel.value.trim() || "gpt-5.5",
       OPENAI_EMBEDDING_MODEL: openaiEmbeddingModel.value.trim() || "text-embedding-3-small",
+      EMBEDDING_PROVIDER: embeddingProvider.value,
+      DASHSCOPE_BASE_URL: dashscopeBaseUrl.value.trim() || "https://dashscope.aliyuncs.com/api/v1",
+      DASHSCOPE_EMBEDDING_MODEL: dashscopeEmbeddingModel.value.trim() || "text-embedding-v4",
+      QIANFAN_BASE_URL: qianfanBaseUrl.value.trim() || "https://qianfan.baidubce.com/v2",
+      QIANFAN_EMBEDDING_MODEL: qianfanEmbeddingModel.value.trim() || "embedding-v1",
       AI_MATCH_MODE: "rule_first",
       OCR_EXTRACT_MODE: "rule_first",
     };
     if (openaiApiKey.value.trim()) {
       settings.OPENAI_API_KEY = openaiApiKey.value.trim();
     }
+    if (dashscopeApiKey.value.trim()) {
+      settings.DASHSCOPE_API_KEY = dashscopeApiKey.value.trim();
+    }
+    if (qianfanApiKey.value.trim()) {
+      settings.QIANFAN_API_KEY = qianfanApiKey.value.trim();
+    }
     const data = await updateSystemSettings(settings);
     aiEnabled.value = data.runtime.ai_enabled;
     apiKeyConfigured.value = data.runtime.openai_api_key_configured;
+    embeddingProvider.value = data.runtime.embedding_provider;
+    dashscopeApiKeyConfigured.value = data.runtime.dashscope_api_key_configured;
+    qianfanApiKeyConfigured.value = data.runtime.qianfan_api_key_configured;
     openaiApiKey.value = "";
+    dashscopeApiKey.value = "";
+    qianfanApiKey.value = "";
     showSuccessToast("系统配置已保存");
   } catch {
     showFailToast("系统配置保存失败");
@@ -74,8 +108,16 @@ async function testConnection() {
     showSuccessToast("当前为规则模式，无需连接AI");
     return;
   }
-  if (!apiKeyConfigured.value && !openaiApiKey.value.trim()) {
-    showFailToast("请先填写中转站密钥");
+  if (embeddingProvider.value === "openai" && !apiKeyConfigured.value && !openaiApiKey.value.trim()) {
+    showFailToast("请先填写OpenAI兼容接口密钥");
+    return;
+  }
+  if (embeddingProvider.value === "dashscope" && !dashscopeApiKeyConfigured.value && !dashscopeApiKey.value.trim()) {
+    showFailToast("请先填写阿里百炼密钥");
+    return;
+  }
+  if (embeddingProvider.value === "qianfan" && !qianfanApiKeyConfigured.value && !qianfanApiKey.value.trim()) {
+    showFailToast("请先填写百度千帆密钥");
     return;
   }
   showSuccessToast("配置已保存，上传或匹配时会自动验证接口");
@@ -126,10 +168,60 @@ onMounted(loadSettings);
         />
         <van-field
           v-model="openaiEmbeddingModel"
-          label="向量模型"
+          label="兼容向量"
           placeholder="例如 text-embedding-3-small"
           clearable
         />
+        <div class="provider-panel">
+          <div class="provider-title">向量服务</div>
+          <van-radio-group v-model="embeddingProvider" direction="horizontal">
+            <van-radio name="openai" checked-color="#1D9E75">兼容接口</van-radio>
+            <van-radio name="dashscope" checked-color="#1D9E75">阿里</van-radio>
+            <van-radio name="qianfan" checked-color="#1D9E75">百度</van-radio>
+          </van-radio-group>
+        </div>
+        <template v-if="embeddingProvider === 'dashscope'">
+          <van-field
+            v-model="dashscopeApiKey"
+            label="阿里密钥"
+            :placeholder="dashscopeSecretPlaceholder"
+            type="password"
+            clearable
+          />
+          <van-field
+            v-model="dashscopeBaseUrl"
+            label="阿里地址"
+            placeholder="https://dashscope.aliyuncs.com/api/v1"
+            clearable
+          />
+          <van-field
+            v-model="dashscopeEmbeddingModel"
+            label="阿里向量"
+            placeholder="text-embedding-v4"
+            clearable
+          />
+        </template>
+        <template v-if="embeddingProvider === 'qianfan'">
+          <van-field
+            v-model="qianfanApiKey"
+            label="百度密钥"
+            :placeholder="qianfanSecretPlaceholder"
+            type="password"
+            clearable
+          />
+          <van-field
+            v-model="qianfanBaseUrl"
+            label="百度地址"
+            placeholder="https://qianfan.baidubce.com/v2"
+            clearable
+          />
+          <van-field
+            v-model="qianfanEmbeddingModel"
+            label="百度向量"
+            placeholder="embedding-v1"
+            clearable
+          />
+        </template>
         <div class="button-stack">
           <van-button
             class="touch-button primary-button"
@@ -206,6 +298,17 @@ onMounted(loadSettings);
   display: grid;
   gap: 10px;
   padding: 14px;
+}
+
+.provider-panel {
+  padding: 14px;
+  background: #f7fbfa;
+}
+
+.provider-title {
+  margin-bottom: 10px;
+  color: var(--color-muted);
+  font-size: 16px;
 }
 
 .save-button {

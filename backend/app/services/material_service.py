@@ -5,7 +5,7 @@ import shutil
 import tempfile
 import unicodedata
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Callable
 
 import faiss
 import numpy as np
@@ -15,15 +15,14 @@ from sqlalchemy.dialects.sqlite import insert
 
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
-from app.core.openai_client import create_openai_client
 from app.core.paths import get_data_dir
 from app.models.material import Material
+from app.services.embedding_service import create_embeddings
 
 
 DATA_DIR = get_data_dir()
 FAISS_INDEX_PATH = DATA_DIR / "materials.faiss"
 ID_MAP_PATH = DATA_DIR / "id_map.json"
-EMBEDDING_BATCH_SIZE = 50
 
 
 def normalize_text(value) -> str:
@@ -104,21 +103,9 @@ def import_materials_from_csv(file_path: str) -> dict:
     return run_async(async_import_materials_from_csv(file_path))
 
 
-def chunked(items: list[str], batch_size: int) -> Iterable[list[str]]:
-    """按批次切分文本列表。"""
-    for start in range(0, len(items), batch_size):
-        yield items[start : start + batch_size]
-
-
 def default_embedding_provider(texts: list[str]) -> list[list[float]]:
-    """调用OpenAI生成文本向量。"""
-    settings = get_settings()
-    client = create_openai_client()
-    embeddings: list[list[float]] = []
-    for batch in chunked(texts, EMBEDDING_BATCH_SIZE):
-        response = client.embeddings.create(model=settings.openai_embedding_model, input=batch)
-        embeddings.extend([item.embedding for item in response.data])
-    return embeddings
+    """按系统配置生成文本向量。"""
+    return create_embeddings(texts, text_type="document")
 
 
 def normalize_vectors(vectors: list[list[float]]) -> np.ndarray:

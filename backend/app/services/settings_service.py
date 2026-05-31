@@ -28,6 +28,13 @@ class RuntimeSettings:
     openai_base_url: str
     openai_chat_model: str
     openai_embedding_model: str
+    embedding_provider: str
+    dashscope_api_key: str
+    dashscope_base_url: str
+    dashscope_embedding_model: str
+    qianfan_api_key: str
+    qianfan_base_url: str
+    qianfan_embedding_model: str
     ai_match_mode: str
     ocr_extract_mode: str
 
@@ -36,6 +43,16 @@ class RuntimeSettings:
         """判断OpenAI密钥是否已配置。"""
         return bool(self.openai_api_key)
 
+    @property
+    def dashscope_api_key_configured(self) -> bool:
+        """判断阿里百炼密钥是否已配置。"""
+        return bool(self.dashscope_api_key)
+
+    @property
+    def qianfan_api_key_configured(self) -> bool:
+        """判断百度千帆密钥是否已配置。"""
+        return bool(self.qianfan_api_key)
+
 
 SETTING_DEFINITIONS = {
     "AI_ENABLED": SettingDefinition("AI_ENABLED", "bool", "ai", "是否启用AI增强能力"),
@@ -43,6 +60,13 @@ SETTING_DEFINITIONS = {
     "OPENAI_BASE_URL": SettingDefinition("OPENAI_BASE_URL", "string", "ai", "OpenAI兼容接口地址"),
     "OPENAI_CHAT_MODEL": SettingDefinition("OPENAI_CHAT_MODEL", "string", "ai", "聊天和推理模型"),
     "OPENAI_EMBEDDING_MODEL": SettingDefinition("OPENAI_EMBEDDING_MODEL", "string", "ai", "向量模型"),
+    "EMBEDDING_PROVIDER": SettingDefinition("EMBEDDING_PROVIDER", "string", "ai", "向量供应商"),
+    "DASHSCOPE_API_KEY": SettingDefinition("DASHSCOPE_API_KEY", "secret", "ai", "阿里百炼DashScope密钥", True),
+    "DASHSCOPE_BASE_URL": SettingDefinition("DASHSCOPE_BASE_URL", "string", "ai", "阿里百炼DashScope接口地址"),
+    "DASHSCOPE_EMBEDDING_MODEL": SettingDefinition("DASHSCOPE_EMBEDDING_MODEL", "string", "ai", "阿里百炼向量模型"),
+    "QIANFAN_API_KEY": SettingDefinition("QIANFAN_API_KEY", "secret", "ai", "百度千帆API Key", True),
+    "QIANFAN_BASE_URL": SettingDefinition("QIANFAN_BASE_URL", "string", "ai", "百度千帆接口地址"),
+    "QIANFAN_EMBEDDING_MODEL": SettingDefinition("QIANFAN_EMBEDDING_MODEL", "string", "ai", "百度千帆向量模型"),
     "AI_MATCH_MODE": SettingDefinition("AI_MATCH_MODE", "string", "ai", "物料匹配模式"),
     "OCR_EXTRACT_MODE": SettingDefinition("OCR_EXTRACT_MODE", "string", "ocr", "OCR文本提取模式"),
 }
@@ -78,6 +102,13 @@ def build_default_values() -> dict[str, str]:
         "OPENAI_BASE_URL": settings.openai_base_url,
         "OPENAI_CHAT_MODEL": settings.openai_chat_model,
         "OPENAI_EMBEDDING_MODEL": settings.openai_embedding_model,
+        "EMBEDDING_PROVIDER": settings.embedding_provider,
+        "DASHSCOPE_API_KEY": settings.dashscope_api_key,
+        "DASHSCOPE_BASE_URL": settings.dashscope_base_url,
+        "DASHSCOPE_EMBEDDING_MODEL": settings.dashscope_embedding_model,
+        "QIANFAN_API_KEY": settings.qianfan_api_key,
+        "QIANFAN_BASE_URL": settings.qianfan_base_url,
+        "QIANFAN_EMBEDDING_MODEL": settings.qianfan_embedding_model,
         "AI_MATCH_MODE": "rule_first",
         "OCR_EXTRACT_MODE": "rule_first",
     }
@@ -107,6 +138,13 @@ def build_runtime_settings(values: dict[str, str]) -> RuntimeSettings:
         openai_base_url=values.get("OPENAI_BASE_URL", ""),
         openai_chat_model=values.get("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
         openai_embedding_model=values.get("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
+        embedding_provider=(values.get("EMBEDDING_PROVIDER", "openai") or "openai").lower(),
+        dashscope_api_key=values.get("DASHSCOPE_API_KEY", ""),
+        dashscope_base_url=values.get("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/api/v1"),
+        dashscope_embedding_model=values.get("DASHSCOPE_EMBEDDING_MODEL", "text-embedding-v4"),
+        qianfan_api_key=values.get("QIANFAN_API_KEY", ""),
+        qianfan_base_url=values.get("QIANFAN_BASE_URL", "https://qianfan.baidubce.com/v2"),
+        qianfan_embedding_model=values.get("QIANFAN_EMBEDDING_MODEL", "embedding-v1"),
         ai_match_mode=values.get("AI_MATCH_MODE", "rule_first") or "rule_first",
         ocr_extract_mode=values.get("OCR_EXTRACT_MODE", "rule_first") or "rule_first",
     )
@@ -187,6 +225,13 @@ async def serialize_system_settings(db: AsyncSession) -> dict:
             "openai_base_url": runtime.openai_base_url,
             "openai_chat_model": runtime.openai_chat_model,
             "openai_embedding_model": runtime.openai_embedding_model,
+            "embedding_provider": runtime.embedding_provider,
+            "dashscope_api_key_configured": runtime.dashscope_api_key_configured,
+            "dashscope_base_url": runtime.dashscope_base_url,
+            "dashscope_embedding_model": runtime.dashscope_embedding_model,
+            "qianfan_api_key_configured": runtime.qianfan_api_key_configured,
+            "qianfan_base_url": runtime.qianfan_base_url,
+            "qianfan_embedding_model": runtime.qianfan_embedding_model,
             "ai_match_mode": runtime.ai_match_mode,
             "ocr_extract_mode": runtime.ocr_extract_mode,
         },

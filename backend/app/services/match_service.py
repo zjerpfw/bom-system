@@ -18,6 +18,7 @@ from app.models.bom_item import BomItem
 from app.models.material import Material
 from app.models.missing_material import MissingMaterial
 from app.models.name_mapping import NameMapping
+from app.services.embedding_service import create_embedding as create_provider_embedding
 
 
 MATCH_SYSTEM_PROMPT = """
@@ -66,14 +67,8 @@ def call_llm_judge(raw_name: str, candidates: list[dict], runtime_settings=None)
 
 
 def create_embedding(raw_name: str, runtime_settings=None) -> list[float]:
-    """调用OpenAI生成物料名称向量。"""
-    settings = get_settings()
-    embedding_model = runtime_settings.openai_embedding_model if runtime_settings else settings.openai_embedding_model
-    api_key = runtime_settings.openai_api_key if runtime_settings else None
-    base_url = runtime_settings.openai_base_url if runtime_settings else None
-    client = call_create_openai_client(api_key=api_key, base_url=base_url)
-    response = client.embeddings.create(model=embedding_model, input=[raw_name])
-    return response.data[0].embedding
+    """按系统配置生成物料名称向量。"""
+    return create_provider_embedding(raw_name, runtime_settings=runtime_settings, text_type="query")
 
 
 def normalize_query_vector(vector: list[float]) -> np.ndarray:

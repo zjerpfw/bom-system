@@ -23,6 +23,13 @@ class Settings:
     openai_base_url: str
     openai_chat_model: str
     openai_embedding_model: str
+    embedding_provider: str
+    dashscope_api_key: str
+    dashscope_base_url: str
+    dashscope_embedding_model: str
+    qianfan_api_key: str
+    qianfan_base_url: str
+    qianfan_embedding_model: str
     paddleocr_model_dir: str
     paddleocr_ascii_cache_dir: str
     baidu_ocr_app_id: str
@@ -64,6 +71,13 @@ def get_settings() -> Settings:
         openai_base_url=os.getenv("OPENAI_BASE_URL", "").strip(),
         openai_chat_model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini").strip(),
         openai_embedding_model=os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small").strip(),
+        embedding_provider=os.getenv("EMBEDDING_PROVIDER", "openai").strip().lower(),
+        dashscope_api_key=os.getenv("DASHSCOPE_API_KEY", "").strip(),
+        dashscope_base_url=os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/api/v1").strip(),
+        dashscope_embedding_model=os.getenv("DASHSCOPE_EMBEDDING_MODEL", "text-embedding-v4").strip(),
+        qianfan_api_key=os.getenv("QIANFAN_API_KEY", "").strip(),
+        qianfan_base_url=os.getenv("QIANFAN_BASE_URL", "https://qianfan.baidubce.com/v2").strip(),
+        qianfan_embedding_model=os.getenv("QIANFAN_EMBEDDING_MODEL", "embedding-v1").strip(),
         paddleocr_model_dir=os.getenv("PADDLEOCR_MODEL_DIR", "").strip(),
         paddleocr_ascii_cache_dir=os.getenv("PADDLEOCR_ASCII_CACHE_DIR", "").strip(),
         baidu_ocr_app_id=os.getenv("BAIDU_OCR_APP_ID", ""),

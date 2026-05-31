@@ -84,6 +84,13 @@ export interface SystemSettingsData {
     openai_base_url: string;
     openai_chat_model: string;
     openai_embedding_model: string;
+    embedding_provider: string;
+    dashscope_api_key_configured: boolean;
+    dashscope_base_url: string;
+    dashscope_embedding_model: string;
+    qianfan_api_key_configured: boolean;
+    qianfan_base_url: string;
+    qianfan_embedding_model: string;
     ai_match_mode: string;
     ocr_extract_mode: string;
   };
