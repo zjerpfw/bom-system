@@ -218,6 +218,24 @@ def test_table_to_bom_items_maps_header_and_skips_duplicates():
     ]
 
 
+def test_table_to_bom_items_skips_summary_rows():
+    from app.services.ocr_service import table_to_bom_items
+
+    table = [
+        ["序号", "品名", "数量/斤", "备注"],
+        ["1", "博爱牛油", "200", ""],
+        ["2", "起酥油", "240", ""],
+        ["", "合计", "440", ""],
+        ["", "总计", "440", ""],
+        ["", "小计", "440", ""],
+    ]
+
+    result = table_to_bom_items(table, "虹五五")
+
+    assert [item["name"] for item in result["items"]] == ["博爱牛油", "起酥油"]
+    assert [item["quantity"] for item in result["items"]] == [200, 240]
+
+
 def test_baidu_mode_without_keys_returns_friendly_error(monkeypatch):
     import main
     from app.core.config import get_settings

@@ -210,3 +210,20 @@ def test_rule_extract_bom_from_paddle_table_fragments_without_ai(monkeypatch):
         {"name": "螺钉", "spec": "M6x20", "quantity": 8, "unit": "个", "level": 1, "confidence": 0.58},
         {"name": "垫片", "spec": "6mm", "quantity": 8, "unit": "个", "level": 1, "confidence": 0.58},
     ]
+
+
+def test_rule_extract_bom_skips_summary_lines_without_ai():
+    from app.services import ocr_service
+
+    result = ocr_service.extract_bom_from_ocr_text(
+        [
+            "1 铜柱 M3x10 4 个",
+            "2 螺钉 M6x20 8 个",
+            "合计 12",
+            "总计 12 个",
+        ],
+        "测试夹具",
+        ai_enabled=False,
+    )
+
+    assert [item["name"] for item in result["items"]] == ["铜柱", "螺钉"]

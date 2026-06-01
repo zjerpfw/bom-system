@@ -605,6 +605,20 @@ def parse_quantity(value: str):
     return int(number) if number == number.to_integral_value() else float(number)
 
 
+def is_summary_text(text: str) -> bool:
+    """判断文本是否为合计类汇总行。"""
+    normalized = normalize_text(text).replace(" ", "")
+    if not normalized:
+        return False
+    keywords = ["合计", "总计", "小计", "共计", "累计", "总合计"]
+    return any(keyword in normalized for keyword in keywords)
+
+
+def is_summary_row(cells: list[str]) -> bool:
+    """判断表格行是否为合计类汇总行。"""
+    return is_summary_text(" ".join(normalize_text(cell) for cell in cells if normalize_text(cell)))
+
+
 def table_row_to_line(row: list[str]) -> str:
     """将表格行转换为兜底提取文本。"""
     return " ".join(normalize_text(cell) for cell in row if normalize_text(cell))
@@ -631,6 +645,8 @@ def table_to_bom_items(table: list[list[str]], product_name: str, ai_enabled: bo
     for row in table[header_index + 1 :]:
         normalized_cells = [normalize_text(cell) for cell in row]
         if not any(normalized_cells):
+            continue
+        if is_summary_row(normalized_cells):
             continue
         row_key = "|".join(normalized_cells)
         if row_key in seen_rows:
@@ -712,6 +728,8 @@ def is_fragment_noise(token: str) -> bool:
     text = normalize_text(token)
     if not text:
         return True
+    if is_summary_text(text):
+        return True
     exact_headers = {"序号", "名称", "规格", "规格型号", "型号", "数量", "用量", "单位", "用量单位"}
     if text in exact_headers:
         return True
@@ -786,7 +804,7 @@ def rule_extract_fragmented_table(raw_lines: list[str]) -> list[dict]:
 def rule_extract_line(line: str) -> dict | None:
     """用规则从一行文本提取BOM条目。"""
     text = remove_leading_index(normalize_text(line))
-    if not text or looks_like_header(text):
+    if not text or looks_like_header(text) or is_summary_text(text):
         return None
     tokens = text.split()
     if len(tokens) < 2:
