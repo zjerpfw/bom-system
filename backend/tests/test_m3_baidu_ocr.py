@@ -79,6 +79,39 @@ def test_auto_mode_sends_enhanced_image_to_baidu(monkeypatch):
     assert captured["image_bytes"] == b"enhanced-image"
 
 
+def test_auto_mode_retries_original_image_when_enhanced_table_is_sparse(monkeypatch):
+    import main
+    from app.api import ocr
+
+    calls = []
+
+    monkeypatch.setattr(ocr, "is_table_image", lambda image_bytes: True)
+    monkeypatch.setattr(ocr, "has_baidu_free_quota", lambda api_name="table_v2": True)
+    monkeypatch.setattr(ocr, "enhance_table_photo_for_ocr", lambda image_bytes: b"enhanced-image")
+
+    def fake_baidu(image_bytes):
+        calls.append(image_bytes)
+        if image_bytes == b"enhanced-image":
+            return [["序号", "名称", "用量", "单位"], ["1", "铜柱", "", ""]]
+        return [["序号", "名称", "用量", "单位"], ["1", "铜柱", "4", "个"], ["2", "螺钉", "8", "个"]]
+
+    monkeypatch.setattr(ocr, "ocr_table_with_baidu", fake_baidu)
+    client = TestClient(main.app)
+
+    response = client.post(
+        "/api/ocr/upload",
+        data={"product_name": "测试夹具", "mode": "auto"},
+        files={"file": ("table.png", create_table_image_bytes(), "image/png")},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["code"] == 0
+    assert calls == [b"enhanced-image", create_table_image_bytes()]
+    assert response.json()["data"]["mode"] == "baidu_original_retry"
+    assert response.json()["data"]["warnings"] == ["增强识别结果偏少，已自动用原图重试"]
+    assert [item["name"] for item in response.json()["data"]["extracted"]["items"]] == ["铜柱", "螺钉"]
+
+
 def test_get_baidu_access_token_uses_cache(monkeypatch):
     from app.core.config import get_settings
     from app.services import ocr_service

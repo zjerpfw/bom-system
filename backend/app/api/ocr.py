@@ -8,10 +8,14 @@ from app.core.database import get_db
 from app.services.ocr_service import (
     enhance_table_photo_for_ocr,
     extract_bom_from_ocr_text,
+    find_header_row,
+    get_cell_by_mapping,
     has_baidu_free_quota,
+    is_summary_row,
     is_table_image,
     ocr_table_with_baidu,
     ocr_with_paddle,
+    parse_quantity,
     preprocess_image,
     table_to_bom_items,
 )
@@ -58,6 +62,29 @@ def call_ocr_table_with_baidu(image_bytes: bytes, runtime_settings) -> list[list
         return ocr_table_with_baidu(image_bytes)
 
 
+def count_complete_bom_rows(table: list[list[str]]) -> int:
+    """统计同时包含名称和数量的表格数据行。"""
+    header_index, mapping = find_header_row(table)
+    if header_index < 0 or "name" not in mapping or "quantity" not in mapping:
+        return 0
+
+    complete_count = 0
+    for row in table[header_index + 1 :]:
+        normalized_cells = [str(cell).strip() for cell in row]
+        if not any(normalized_cells) or is_summary_row(normalized_cells):
+            continue
+        name = get_cell_by_mapping(normalized_cells, mapping, "name")
+        quantity = parse_quantity(get_cell_by_mapping(normalized_cells, mapping, "quantity"))
+        if name and quantity is not None:
+            complete_count += 1
+    return complete_count
+
+
+def should_retry_original_table(table: list[list[str]]) -> bool:
+    """判断增强后的表格结果是否过少，需要用原图重试。"""
+    return count_complete_bom_rows(table) < 1
+
+
 @router.post("/upload")
 async def upload_ocr_image(
     file: UploadFile,
@@ -88,6 +115,14 @@ async def upload_ocr_image(
         try:
             ocr_image_bytes = enhance_table_photo_for_ocr(image_bytes) if use_enhanced_baidu else image_bytes
             table = call_ocr_table_with_baidu(ocr_image_bytes, runtime_settings)
+            baidu_mode = "baidu_enhanced" if use_enhanced_baidu else "baidu"
+            if normalized_mode == "auto" and use_enhanced_baidu and should_retry_original_table(table):
+                if call_has_baidu_free_quota("table_v2", runtime_settings):
+                    original_table = call_ocr_table_with_baidu(image_bytes, runtime_settings)
+                    if count_complete_bom_rows(original_table) > count_complete_bom_rows(table):
+                        table = original_table
+                        baidu_mode = "baidu_original_retry"
+                        warnings.append("增强识别结果偏少，已自动用原图重试")
             raw_lines = [" | ".join(cell for cell in row if cell) for row in table]
             extracted = table_to_bom_items(table, product_name, ai_enabled=runtime_settings.ai_enabled)
             processing_time_ms = int((time.perf_counter() - start_time) * 1000)
@@ -99,7 +134,7 @@ async def upload_ocr_image(
                     "table": table,
                     "extracted": extracted,
                     "processing_time_ms": processing_time_ms,
-                    "mode": "baidu_enhanced" if use_enhanced_baidu else "baidu",
+                    "mode": baidu_mode,
                     "warnings": warnings,
                 },
             }
