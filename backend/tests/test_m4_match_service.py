@@ -189,6 +189,59 @@ def test_llm_judge_accepts_compatible_string_response(monkeypatch):
     assert result.confidence == 0.87
 
 
+def test_llm_judge_treats_empty_response_as_unmatched(monkeypatch):
+    from app.services import match_service
+
+    candidates = [
+        {"code": "M001", "name": "铜柱", "spec": "M3x10", "score": 0.82},
+        {"code": "M002", "name": "螺钉", "spec": "M6x20", "score": 0.65},
+    ]
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            assert kwargs["model"]
+            return ""
+
+    class FakeChat:
+        completions = FakeCompletions()
+
+    class FakeClient:
+        chat = FakeChat()
+
+    monkeypatch.setattr(match_service, "create_openai_client", lambda: FakeClient())
+
+    result = match_service.llm_judge("铜柱子", candidates)
+
+    assert result.matched_code is None
+    assert result.confidence == 0.0
+    assert result.match_level == "llm"
+    assert result.candidates == candidates
+
+
+def test_llm_judge_treats_non_json_response_as_unmatched(monkeypatch):
+    from app.services import match_service
+
+    candidates = [{"code": "M001", "name": "铜柱", "spec": "M3x10", "score": 0.82}]
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            return "模型暂时无法判断"
+
+    class FakeChat:
+        completions = FakeCompletions()
+
+    class FakeClient:
+        chat = FakeChat()
+
+    monkeypatch.setattr(match_service, "create_openai_client", lambda: FakeClient())
+
+    result = match_service.llm_judge("铜柱子", candidates)
+
+    assert result.matched_code is None
+    assert result.match_level == "llm"
+    assert result.candidates == candidates
+
+
 @pytest.mark.asyncio
 async def test_match_material_returns_embedding_when_first_score_is_clear(test_session, monkeypatch):
     from app.services import match_service

@@ -79,7 +79,11 @@ async def process_bom_match(request: Request, payload: ProcessBomRequest, db: As
     """处理一批提取后的BOM数据。"""
     request.app.state.runtime_settings = await get_runtime_settings(db)
     request.app.state.ai_enabled = request.app.state.runtime_settings.ai_enabled
-    stats = await process_extracted_bom(payload.extracted, payload.product_name, db, request.app.state)
+    try:
+        stats = await process_extracted_bom(payload.extracted, payload.product_name, db, request.app.state)
+    except Exception as error:
+        await db.rollback()
+        return error_response(f"提交审核失败：{error}")
     return success_response(stats)
 
 

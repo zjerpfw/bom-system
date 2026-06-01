@@ -292,8 +292,13 @@ def llm_judge(raw_name: str, candidates: list[dict], runtime_settings=None) -> M
         ],
         temperature=0,
     )
-    content = extract_text_from_openai_response(response) or "{}"
-    data = json.loads(strip_markdown_json(content))
+    content = extract_text_from_openai_response(response)
+    try:
+        data = json.loads(strip_markdown_json(content or "{}"))
+    except json.JSONDecodeError:
+        return MatchResult(raw_name, None, None, None, 0.0, "llm", candidates)
+    if not isinstance(data, dict):
+        return MatchResult(raw_name, None, None, None, 0.0, "llm", candidates)
     matched_code = data.get("matched_code")
     confidence = float(data.get("confidence") or 0.0)
     selected = next((candidate for candidate in candidates if candidate.get("code") == matched_code), None)
