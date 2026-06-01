@@ -412,6 +412,35 @@ def get_item_raw_name(item: dict) -> str:
     return item.get("raw_name") or item.get("material_name") or item.get("name") or ""
 
 
+def get_match_cache_key(item: dict) -> str:
+    """构建同批BOM去重匹配键，不包含用量。"""
+    parts = [
+        get_item_raw_name(item),
+        item.get("spec") or "",
+        item.get("unit") or "",
+    ]
+    return "|".join(normalize_match_text(str(part)) for part in parts)
+
+
+async def batch_match_unique(items: list[dict], db: AsyncSession, app_state) -> list[MatchResult]:
+    """同批BOM内按名称、规格、单位去重后匹配，再映射回原条目。"""
+    unique_items: list[dict] = []
+    key_order: list[str] = []
+    seen_keys = set()
+    for item in items:
+        cache_key = get_match_cache_key(item)
+        key_order.append(cache_key)
+        if cache_key not in seen_keys:
+            unique_items.append(item)
+            seen_keys.add(cache_key)
+
+    unique_results = await batch_match(unique_items, db, app_state) if unique_items else []
+    result_by_key = {
+        get_match_cache_key(item): match_result for item, match_result in zip(unique_items, unique_results)
+    }
+    return [result_by_key[key] for key in key_order]
+
+
 async def batch_match(items: list[dict], db: AsyncSession, app_state) -> list[MatchResult]:
     """并发批量匹配，限制最大并发为5。"""
     semaphore = asyncio.Semaphore(5)
@@ -521,12 +550,27 @@ def build_bom_item(
 
 async def process_extracted_bom(extracted: dict, product_name: str, db: AsyncSession, app_state) -> dict:
     """处理OCR提取的BOM，写入匹配和审核数据。"""
-    items = extracted.get("items") or []
-    final_product_name = product_name or extracted.get("product") or ""
-    match_results = await batch_match(items, db, app_state)
+    return await process_extracted_bom_documents(
+        [{"product_name": product_name, "extracted": extracted}],
+        db,
+        app_state,
+    )
+
+
+async def process_extracted_bom_documents(documents: list[dict], db: AsyncSession, app_state) -> dict:
+    """处理多份OCR提取的BOM，跨文档去重匹配后写入审核数据。"""
+    records = []
+    for document in documents:
+        extracted = document.get("extracted") or {}
+        final_product_name = document.get("product_name") or extracted.get("product") or ""
+        for item in extracted.get("items") or []:
+            records.append((final_product_name, item))
+
+    items = [item for _, item in records]
+    match_results = await batch_match_unique(items, db, app_state)
     stats = {"auto_confirmed": 0, "pending_review": 0, "missing": 0, "total": len(items)}
 
-    for item, match_result in zip(items, match_results):
+    for (final_product_name, item), match_result in zip(records, match_results):
         is_missing = match_result.match_level == "none" or match_result.confidence < 0.70
         is_confirmed = bool(match_result.matched_code) and match_result.confidence >= 0.90 and not is_missing
         status = "confirmed" if is_confirmed else "pending"

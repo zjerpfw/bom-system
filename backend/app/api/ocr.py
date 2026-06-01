@@ -11,12 +11,14 @@ from app.services.ocr_service import (
     find_header_row,
     get_cell_by_mapping,
     has_baidu_free_quota,
+    infer_product_name_from_lines,
     is_summary_row,
     is_table_image,
     ocr_table_with_baidu,
     ocr_with_paddle,
     parse_quantity,
     preprocess_image,
+    preprocess_title_region,
     table_to_bom_items,
 )
 from app.services.settings_service import safe_get_runtime_settings
@@ -124,7 +126,13 @@ async def upload_ocr_image(
                         baidu_mode = "baidu_original_retry"
                         warnings.append("增强识别结果偏少，已自动用原图重试")
             raw_lines = [" | ".join(cell for cell in row if cell) for row in table]
-            extracted = table_to_bom_items(table, product_name, ai_enabled=runtime_settings.ai_enabled)
+            final_product_name = product_name or infer_product_name_from_lines(raw_lines)
+            if not final_product_name:
+                title_results = ocr_with_paddle(preprocess_title_region(image_bytes))
+                title_lines = [item["text"] for item in title_results]
+                final_product_name = infer_product_name_from_lines(title_lines)
+                raw_lines = title_lines + raw_lines
+            extracted = table_to_bom_items(table, final_product_name, ai_enabled=runtime_settings.ai_enabled)
             processing_time_ms = int((time.perf_counter() - start_time) * 1000)
             return {
                 "code": 0,

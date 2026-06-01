@@ -89,6 +89,40 @@ async def test_process_extracted_bom_persists_status_mapping_and_missing(persist
 
 
 @pytest.mark.asyncio
+async def test_process_extracted_bom_matches_duplicate_material_names_once(persistence_session, monkeypatch):
+    from app.models.bom_item import BomItem
+    from app.services import match_service
+
+    matched_batches = []
+
+    async def fake_batch_match(items, db, app_state):
+        matched_batches.append([item["name"] for item in items])
+        return [
+            match_service.MatchResult(item["name"], "M001", "铜柱", item.get("spec"), 0.95, "exact", [])
+            for item in items
+        ]
+
+    monkeypatch.setattr(match_service, "batch_match", fake_batch_match)
+    extracted = {
+        "product": "批量火锅料",
+        "items": [
+            {"name": "铜柱", "spec": "M3x10", "quantity": 4, "unit": "个", "level": 1},
+            {"name": "铜柱", "spec": "M3x10", "quantity": 6, "unit": "个", "level": 1},
+            {"name": "铜柱", "spec": "M3x10", "quantity": 8, "unit": "个", "level": 1},
+        ],
+    }
+
+    stats = await match_service.process_extracted_bom(extracted, "", persistence_session, SimpleNamespace())
+
+    assert matched_batches == [["铜柱"]]
+    assert stats == {"auto_confirmed": 3, "pending_review": 0, "missing": 0, "total": 3}
+
+    bom_items = (await persistence_session.execute(select(BomItem).order_by(BomItem.id))).scalars().all()
+    assert [int(item.quantity) for item in bom_items] == [4, 6, 8]
+    assert [item.material_code for item in bom_items] == ["M001", "M001", "M001"]
+
+
+@pytest.mark.asyncio
 async def test_confirm_and_reject_match_update_bom_and_mapping(persistence_session, monkeypatch):
     from app.models.bom_item import BomItem
     from app.models.name_mapping import NameMapping
@@ -227,4 +261,53 @@ def test_match_api_process_pending_confirm_reject_and_missing(tmp_path, monkeypa
     assert reject_response.json() == {"code": 0, "msg": "ok", "data": {"status": "rejected"}}
     assert missing_response.json()["data"]["total"] == 1
     assert created_response.json() == {"code": 0, "msg": "ok", "data": {"status": "created"}}
+    app.dependency_overrides.clear()
+
+
+def test_match_api_process_batch_reuses_duplicate_matches(tmp_path, monkeypatch):
+    from app.models.bom_item import BomItem
+    from app.core.database import get_db
+    from app.services import match_service
+
+    client, app = configure_match_api_test(tmp_path, monkeypatch)
+    matched_batches = []
+
+    async def fake_batch_match(items, db, app_state):
+        matched_batches.append([item["name"] for item in items])
+        return [
+            match_service.MatchResult(item["name"], "M001", "铜柱", item.get("spec"), 0.95, "exact", [])
+            for item in items
+        ]
+
+    monkeypatch.setattr(match_service, "batch_match", fake_batch_match)
+
+    response = client.post(
+        "/api/match/process-batch",
+        json={
+            "documents": [
+                {
+                    "product_name": "产品A",
+                    "extracted": {"product": "产品A", "items": [{"name": "铜柱", "spec": "M3x10", "quantity": 4, "unit": "个"}]},
+                },
+                {
+                    "product_name": "产品B",
+                    "extracted": {"product": "产品B", "items": [{"name": "铜柱", "spec": "M3x10", "quantity": 8, "unit": "个"}]},
+                },
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"] == {"auto_confirmed": 2, "pending_review": 0, "missing": 0, "total": 2}
+    assert matched_batches == [["铜柱"]]
+
+    async def collect_items():
+        async for session in app.dependency_overrides[get_db]():
+            result = await session.execute(select(BomItem).order_by(BomItem.id))
+            return result.scalars().all()
+
+    import asyncio
+
+    bom_items = asyncio.run(collect_items())
+    assert [item.product_name for item in bom_items] == ["产品A", "产品B"]
     app.dependency_overrides.clear()

@@ -227,3 +227,20 @@ def test_rule_extract_bom_skips_summary_lines_without_ai():
     )
 
     assert [item["name"] for item in result["items"]] == ["铜柱", "螺钉"]
+
+
+def test_rule_extract_bom_infers_product_name_without_ai():
+    from app.services import ocr_service
+
+    result = ocr_service.extract_bom_from_ocr_text(
+        [
+            "虹五五",
+            "序号 品名 数量/斤 备注",
+            "1 博爱牛油 200 斤",
+        ],
+        "",
+        ai_enabled=False,
+    )
+
+    assert result["product"] == "虹五五"
+    assert result["items"][0]["name"] == "博爱牛油"

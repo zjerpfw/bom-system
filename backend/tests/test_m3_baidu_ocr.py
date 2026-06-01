@@ -269,6 +269,21 @@ def test_table_to_bom_items_skips_summary_rows():
     assert [item["quantity"] for item in result["items"]] == [200, 240]
 
 
+def test_table_to_bom_items_infers_product_name_from_rows_above_header():
+    from app.services.ocr_service import table_to_bom_items
+
+    table = [
+        ["虹五五", "", "", ""],
+        ["序号", "品名", "数量/斤", "备注"],
+        ["1", "博爱牛油", "200", ""],
+    ]
+
+    result = table_to_bom_items(table, "")
+
+    assert result["product"] == "虹五五"
+    assert result["items"][0]["name"] == "博爱牛油"
+
+
 def test_baidu_mode_without_keys_returns_friendly_error(monkeypatch):
     import main
     from app.core.config import get_settings

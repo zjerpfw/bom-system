@@ -10,6 +10,7 @@ from app.services.match_service import (
     confirm_match,
     deserialize_candidates,
     process_extracted_bom,
+    process_extracted_bom_documents,
     reject_match,
 )
 from app.services.settings_service import get_runtime_settings
@@ -23,6 +24,19 @@ class ProcessBomRequest(BaseModel):
 
     extracted: dict
     product_name: str = ""
+
+
+class ProcessBomDocument(BaseModel):
+    """批量BOM匹配处理中的单份文档。"""
+
+    extracted: dict
+    product_name: str = ""
+
+
+class ProcessBomBatchRequest(BaseModel):
+    """批量BOM匹配处理请求。"""
+
+    documents: list[ProcessBomDocument]
 
 
 class ConfirmMatchRequest(BaseModel):
@@ -84,6 +98,20 @@ async def process_bom_match(request: Request, payload: ProcessBomRequest, db: As
     except Exception as error:
         await db.rollback()
         return error_response(f"提交审核失败：{error}")
+    return success_response(stats)
+
+
+@router.post("/process-batch")
+async def process_bom_match_batch(request: Request, payload: ProcessBomBatchRequest, db: AsyncSession = Depends(get_db)):
+    """批量处理多份提取后的BOM数据。"""
+    request.app.state.runtime_settings = await get_runtime_settings(db)
+    request.app.state.ai_enabled = request.app.state.runtime_settings.ai_enabled
+    try:
+        documents = [document.model_dump() for document in payload.documents]
+        stats = await process_extracted_bom_documents(documents, db, request.app.state)
+    except Exception as error:
+        await db.rollback()
+        return error_response(f"批量提交审核失败：{error}")
     return success_response(stats)
 
 

@@ -317,6 +317,24 @@ def preprocess_image(image_bytes: bytes) -> np.ndarray:
     return deskew_image(binary_image, angle)
 
 
+def preprocess_title_region(image_bytes: bytes) -> np.ndarray:
+    """预处理图片顶部标题区域。"""
+    image = decode_image(image_bytes)
+    height = image.shape[0]
+    top_height = max(int(height * 0.28), 80)
+    title_region = image[:top_height, :]
+    gray_image = cv2.cvtColor(title_region, cv2.COLOR_BGR2GRAY)
+    binary_image = cv2.adaptiveThreshold(
+        gray_image,
+        255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY,
+        31,
+        9,
+    )
+    return binary_image
+
+
 def is_table_image(image_bytes: bytes) -> bool:
     """根据宽高比和线条密度判断是否为表格图片。"""
     image = decode_image(image_bytes)
@@ -619,6 +637,30 @@ def is_summary_row(cells: list[str]) -> bool:
     return is_summary_text(" ".join(normalize_text(cell) for cell in cells if normalize_text(cell)))
 
 
+def clean_product_title(text: str) -> str:
+    """清洗产品标题候选文本。"""
+    normalized = normalize_text(text)
+    normalized = re.sub(r"^(产品名称|产品名|品名)[:：]\s*", "", normalized)
+    normalized = re.sub(r"[（(][^）)]*[）)]", "", normalized)
+    normalized = re.sub(r"\s+", "", normalized)
+    return normalized.strip(":-：| ")
+
+
+def infer_product_name_from_lines(raw_lines: list[str]) -> str:
+    """从OCR前几行推断产品名称。"""
+    header_keywords = ["序号", "名称", "品名", "数量", "用量", "单位", "备注", "规格"]
+    for line in raw_lines[:6]:
+        text = normalize_text(line)
+        if not text or is_summary_text(text):
+            continue
+        if sum(1 for keyword in header_keywords if keyword in text) >= 2:
+            continue
+        candidate = clean_product_title(text)
+        if 2 <= len(candidate) <= 40 and re.search(r"[\u4e00-\u9fff]", candidate):
+            return candidate
+    return ""
+
+
 def table_row_to_line(row: list[str]) -> str:
     """将表格行转换为兜底提取文本。"""
     return " ".join(normalize_text(cell) for cell in row if normalize_text(cell))
@@ -635,9 +677,14 @@ def get_cell_by_mapping(cells: list[str], mapping: dict[str, int], field_name: s
 def table_to_bom_items(table: list[list[str]], product_name: str, ai_enabled: bool | None = None) -> dict:
     """将百度OCR表格转换为BOM结构。"""
     header_index, mapping = find_header_row(table)
+    inferred_product_name = product_name
     if header_index < 0 or "name" not in mapping:
         raw_lines = [table_row_to_line(row) for row in table if table_row_to_line(row)]
-        return extract_bom_from_ocr_text(raw_lines, product_name, ai_enabled=ai_enabled)
+        inferred_product_name = product_name or infer_product_name_from_lines(raw_lines)
+        return extract_bom_from_ocr_text(raw_lines, inferred_product_name, ai_enabled=ai_enabled)
+    inferred_product_name = product_name or infer_product_name_from_lines(
+        [table_row_to_line(row) for row in table[:header_index]]
+    )
 
     items = []
     fallback_lines = []
@@ -676,10 +723,10 @@ def table_to_bom_items(table: list[list[str]], product_name: str, ai_enabled: bo
         )
 
     if fallback_lines:
-        fallback_result = extract_bom_from_ocr_text(fallback_lines, product_name, ai_enabled=ai_enabled)
+        fallback_result = extract_bom_from_ocr_text(fallback_lines, inferred_product_name, ai_enabled=ai_enabled)
         items.extend(fallback_result.get("items", []))
 
-    return {"product": product_name, "items": items}
+    return {"product": inferred_product_name, "items": items}
 
 
 def strip_markdown_json(content: str) -> str:
@@ -840,10 +887,16 @@ def rule_extract_line(line: str) -> dict | None:
 
 def rule_extract_bom_from_ocr_text(raw_lines: list[str], product_name: str) -> dict:
     """无AI模式下用简单规则提取BOM结构。"""
+    final_product_name = product_name or infer_product_name_from_lines(raw_lines)
+    filtered_lines = [
+        line
+        for index, line in enumerate(raw_lines)
+        if not (index < 6 and final_product_name and infer_product_name_from_lines([line]) == final_product_name)
+    ]
     items = []
     seen = set()
-    candidates = [rule_extract_line(line) for line in raw_lines]
-    candidates.extend(rule_extract_fragmented_table(raw_lines))
+    candidates = [rule_extract_line(line) for line in filtered_lines]
+    candidates.extend(rule_extract_fragmented_table(filtered_lines))
     for item in candidates:
         if not item:
             continue
@@ -852,7 +905,7 @@ def rule_extract_bom_from_ocr_text(raw_lines: list[str], product_name: str) -> d
             continue
         seen.add(row_key)
         items.append(item)
-    return {"product": product_name, "items": items}
+    return {"product": final_product_name, "items": items}
 
 
 def should_use_ai(ai_enabled: bool | None) -> bool:
@@ -873,8 +926,9 @@ def extract_bom_from_ocr_text(raw_lines: list[str], product_name: str, ai_enable
     base_url = runtime_settings.openai_base_url if runtime_settings else None
     client = create_openai_client(api_key=api_key, base_url=base_url)
     normalized_lines = [normalize_text(line) for line in raw_lines if normalize_text(line)]
+    final_product_name = product_name or infer_product_name_from_lines(normalized_lines)
     user_content = json.dumps(
-        {"product_name": product_name, "raw_lines": normalized_lines},
+        {"product_name": final_product_name, "raw_lines": normalized_lines},
         ensure_ascii=False,
     )
     response = client.chat.completions.create(

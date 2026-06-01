@@ -68,6 +68,7 @@ export interface ExtractedItem {
 
 export interface OcrUploadResult {
   raw_lines: string[];
+  table?: string[][];
   extracted: {
     product: string;
     items: ExtractedItem[];
@@ -218,6 +219,10 @@ export function uploadOcrFile(file: File, productName: string, mode = "auto") {
   return http.post<OcrUploadResult, OcrUploadResult>("/ocr/upload", formData);
 }
 
+export function uploadOcrFiles(files: File[], productName: string, mode = "auto") {
+  return Promise.all(files.map((file) => uploadOcrFile(file, productName, mode)));
+}
+
 export function extractBomFromText(text: string, productName: string) {
   return http.post<OcrUploadResult, OcrUploadResult>("/ocr/text", {
     text,
@@ -229,6 +234,13 @@ export function processBom(extracted: OcrUploadResult["extracted"], productName:
   return http.post<{ auto_confirmed: number; pending_review: number; missing: number; total: number }, { auto_confirmed: number; pending_review: number; missing: number; total: number }>(
     "/match/process",
     { extracted, product_name: productName },
+  );
+}
+
+export function processBomBatch(documents: Array<{ extracted: OcrUploadResult["extracted"]; product_name: string }>) {
+  return http.post<{ auto_confirmed: number; pending_review: number; missing: number; total: number }, { auto_confirmed: number; pending_review: number; missing: number; total: number }>(
+    "/match/process-batch",
+    { documents },
   );
 }
 
