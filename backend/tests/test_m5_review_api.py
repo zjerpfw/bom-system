@@ -113,7 +113,15 @@ def test_review_dashboard_items_mapping_stats_and_logs(tmp_path, monkeypatch):
     assert items_response.status_code == 200
     assert items_data["total"] == 2
     assert items_data["items"][0]["candidates"][0]["code"] == "M002"
+    assert items_data["items"][0]["material_spec"] == "M6x20"
+    assert items_data["items"][0]["auto_confirmed"] is False
     assert items_data["items"][0]["match_level"] == "llm"
+
+    confirmed_response = client.get("/api/review/items?product_name=夹具A&status=confirmed&page=1&page_size=10")
+    confirmed_item = confirmed_response.json()["data"]["items"][0]
+
+    assert confirmed_item["material_spec"] == "M3x10"
+    assert confirmed_item["auto_confirmed"] is True
 
     high_confidence_id = items_data["items"][0]["id"]
     low_confidence_id = items_data["items"][1]["id"]

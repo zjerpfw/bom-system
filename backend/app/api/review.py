@@ -58,14 +58,16 @@ def bom_item_snapshot(item: BomItem | None) -> str:
     )
 
 
-def serialize_review_item(item: BomItem) -> dict:
+def serialize_review_item(item: BomItem, material_by_code: dict[str, Material] | None = None) -> dict:
     """序列化审核条目。"""
+    material = material_by_code.get(item.material_code or "") if material_by_code else None
     return {
         "id": item.id,
         "product_name": item.product_name,
         "product_code": item.product_code,
         "material_code": item.material_code,
         "material_name": item.material_name,
+        "material_spec": material.spec if material else None,
         "raw_name": item.raw_name,
         "quantity": float(item.quantity) if item.quantity is not None else None,
         "unit": item.unit,
@@ -74,6 +76,7 @@ def serialize_review_item(item: BomItem) -> dict:
         "status": item.status,
         "match_level": item.match_level,
         "candidates": deserialize_candidates(item.candidates_json),
+        "auto_confirmed": item.status == "confirmed" and item.reviewed_at is None,
         "reviewer": item.reviewer,
         "reviewed_at": item.reviewed_at.isoformat() if item.reviewed_at else None,
         "created_at": item.created_at.isoformat() if item.created_at else None,
@@ -178,8 +181,19 @@ async def review_items(
     result = await db.execute(
         query.order_by(BomItem.id).offset((safe_page - 1) * safe_page_size).limit(safe_page_size)
     )
+    items = result.scalars().all()
+    material_codes = [item.material_code for item in items if item.material_code]
+    material_by_code = {}
+    if material_codes:
+        material_result = await db.execute(select(Material).where(Material.code.in_(material_codes)))
+        material_by_code = {material.code: material for material in material_result.scalars().all()}
     return success_response(
-        {"total": total, "page": safe_page, "page_size": safe_page_size, "items": [serialize_review_item(item) for item in result.scalars().all()]}
+        {
+            "total": total,
+            "page": safe_page,
+            "page_size": safe_page_size,
+            "items": [serialize_review_item(item, material_by_code) for item in items],
+        }
     )
 
 

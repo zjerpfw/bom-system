@@ -23,6 +23,7 @@ export interface ReviewItem {
   product_code?: string | null;
   material_code?: string | null;
   material_name?: string | null;
+  material_spec?: string | null;
   raw_name: string;
   quantity?: number | null;
   unit?: string | null;
@@ -31,6 +32,10 @@ export interface ReviewItem {
   status: string;
   match_level?: string | null;
   candidates: CandidateMaterial[];
+  auto_confirmed?: boolean;
+  reviewer?: string | null;
+  reviewed_at?: string | null;
+  created_at?: string | null;
 }
 
 export interface CandidateMaterial {
