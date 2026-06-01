@@ -95,3 +95,48 @@ def test_paddleocr_model_dir_copies_to_ascii_cache_for_non_ascii_path(tmp_path, 
     monkeypatch.delenv("PADDLEOCR_MODEL_DIR", raising=False)
     monkeypatch.delenv("PADDLEOCR_ASCII_CACHE_DIR", raising=False)
     get_settings.cache_clear()
+
+
+def test_windows_package_includes_cython_utility_data():
+    project_dir = Path(__file__).resolve().parents[2]
+    script_text = (project_dir / "scripts" / "package_windows.ps1").read_text(encoding="utf-8")
+
+    assert "Cython\\Utility" in script_text
+    assert "CppSupport.cpp" in script_text
+
+
+def test_windows_package_includes_paddleocr_dynamic_source_data():
+    project_dir = Path(__file__).resolve().parents[2]
+    script_text = (project_dir / "scripts" / "package_windows.ps1").read_text(encoding="utf-8")
+
+    assert "paddleocrPackageDir" in script_text
+    assert "tools\\__init__.py" in script_text
+    assert "--add-data \"$paddleocrPackageDir;paddleocr\"" in script_text
+
+
+def test_windows_package_includes_paddle_native_libraries():
+    project_dir = Path(__file__).resolve().parents[2]
+    script_text = (project_dir / "scripts" / "package_windows.ps1").read_text(encoding="utf-8")
+
+    assert "paddleLibsDir" in script_text
+    assert "mklml.dll" in script_text
+    assert "--add-binary \"$paddleLibsDir\\*.dll;paddle\\libs\"" in script_text
+
+
+def test_windows_package_includes_paddleocr_dynamic_imports():
+    project_dir = Path(__file__).resolve().parents[2]
+    script_text = (project_dir / "scripts" / "package_windows.ps1").read_text(encoding="utf-8")
+
+    assert "--hidden-import imghdr" in script_text
+    assert "--hidden-import shapely" in script_text
+    assert "--hidden-import pyclipper" in script_text
+    assert "--collect-submodules skimage" in script_text
+    assert "--collect-submodules scipy" in script_text
+    assert "--collect-submodules imgaug" in script_text
+    assert "--hidden-import imgaug" in script_text
+    assert "--hidden-import lmdb" in script_text
+    assert "--hidden-import rapidfuzz" in script_text
+    assert "--hidden-import requests" in script_text
+    assert "--hidden-import tqdm" in script_text
+    assert "--copy-metadata imageio" in script_text
+    assert "--copy-metadata imgaug" in script_text

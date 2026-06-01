@@ -33,6 +33,9 @@ $modelsDir = Join-Path $serverDir "models"
 $frontendDistDir = Join-Path $frontendDir "dist"
 $buildVenvDir = Join-Path $backendDir ".build-venv"
 $buildPython = Join-Path $buildVenvDir "Scripts\python.exe"
+$cythonUtilityDir = Join-Path $buildVenvDir "Lib\site-packages\Cython\Utility"
+$paddleocrPackageDir = Join-Path $buildVenvDir "Lib\site-packages\paddleocr"
+$paddleLibsDir = Join-Path $buildVenvDir "Lib\site-packages\paddle\libs"
 
 Write-Host "Cleaning old package directory..."
 Remove-Item -LiteralPath $packageDir -Recurse -Force -ErrorAction SilentlyContinue
@@ -88,6 +91,15 @@ if ($ExistingPython -ne "") {
 }
 
 Write-Host "Building backend EXE with PyInstaller..."
+if (!(Test-Path -LiteralPath (Join-Path $cythonUtilityDir "CppSupport.cpp"))) {
+    throw "Cython Utility data is missing: $cythonUtilityDir"
+}
+if (!(Test-Path -LiteralPath (Join-Path $paddleocrPackageDir "tools\__init__.py"))) {
+    throw "PaddleOCR dynamic source data is missing: $paddleocrPackageDir"
+}
+if (!(Test-Path -LiteralPath (Join-Path $paddleLibsDir "mklml.dll"))) {
+    throw "Paddle native libraries are missing: $paddleLibsDir"
+}
 Invoke-Checked "Build backend EXE" {
     & $buildPython -m PyInstaller `
         --noconfirm `
@@ -95,8 +107,24 @@ Invoke-Checked "Build backend EXE" {
         --name bom-server `
         --console `
         --add-data "$frontendDistDir;frontend_dist" `
+        --add-data "$cythonUtilityDir;Cython\Utility" `
+        --add-data "$paddleocrPackageDir;paddleocr" `
+        --add-binary "$paddleLibsDir\*.dll;paddle\libs" `
+        --collect-submodules skimage `
+        --collect-submodules scipy `
+        --collect-submodules imgaug `
+        --copy-metadata imageio `
+        --copy-metadata imgaug `
         --hidden-import aiosqlite `
         --hidden-import faiss `
+        --hidden-import imghdr `
+        --hidden-import shapely `
+        --hidden-import pyclipper `
+        --hidden-import imgaug `
+        --hidden-import lmdb `
+        --hidden-import rapidfuzz `
+        --hidden-import requests `
+        --hidden-import tqdm `
         --exclude-module paddle.jit.sot `
         main.py
 }
