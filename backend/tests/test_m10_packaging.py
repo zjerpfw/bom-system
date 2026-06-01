@@ -101,6 +101,8 @@ def test_windows_package_includes_cython_utility_data():
     project_dir = Path(__file__).resolve().parents[2]
     script_text = (project_dir / "scripts" / "package_windows.ps1").read_text(encoding="utf-8")
 
+    assert "Get-PythonSitePackagesDir" in script_text
+    assert "sysconfig.get_paths()" in script_text
     assert "Cython\\Utility" in script_text
     assert "CppSupport.cpp" in script_text
 

@@ -21,6 +21,18 @@ function Invoke-Checked {
     }
 }
 
+function Get-PythonSitePackagesDir {
+    param(
+        [string]$PythonPath
+    )
+
+    $sitePackages = & $PythonPath -c "import sysconfig; print(sysconfig.get_paths()['purelib'])"
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($sitePackages)) {
+        throw "Cannot resolve Python site-packages directory from: $PythonPath"
+    }
+    return $sitePackages.Trim()
+}
+
 $projectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $backendDir = Join-Path $projectRoot "backend"
 $frontendDir = Join-Path $projectRoot "frontend"
@@ -33,9 +45,6 @@ $modelsDir = Join-Path $serverDir "models"
 $frontendDistDir = Join-Path $frontendDir "dist"
 $buildVenvDir = Join-Path $backendDir ".build-venv"
 $buildPython = Join-Path $buildVenvDir "Scripts\python.exe"
-$cythonUtilityDir = Join-Path $buildVenvDir "Lib\site-packages\Cython\Utility"
-$paddleocrPackageDir = Join-Path $buildVenvDir "Lib\site-packages\paddleocr"
-$paddleLibsDir = Join-Path $buildVenvDir "Lib\site-packages\paddle\libs"
 
 Write-Host "Cleaning old package directory..."
 Remove-Item -LiteralPath $packageDir -Recurse -Force -ErrorAction SilentlyContinue
@@ -91,6 +100,11 @@ if ($ExistingPython -ne "") {
 }
 
 Write-Host "Building backend EXE with PyInstaller..."
+$sitePackagesDir = Get-PythonSitePackagesDir -PythonPath $buildPython
+$cythonUtilityDir = Join-Path $sitePackagesDir "Cython\Utility"
+$paddleocrPackageDir = Join-Path $sitePackagesDir "paddleocr"
+$paddleLibsDir = Join-Path $sitePackagesDir "paddle\libs"
+
 if (!(Test-Path -LiteralPath (Join-Path $cythonUtilityDir "CppSupport.cpp"))) {
     throw "Cython Utility data is missing: $cythonUtilityDir"
 }
