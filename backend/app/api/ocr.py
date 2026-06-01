@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.services.ocr_service import (
+    enhance_table_photo_for_ocr,
     extract_bom_from_ocr_text,
     has_baidu_free_quota,
     is_table_image,
@@ -37,6 +38,26 @@ def call_extract_bom(raw_lines: list[str], product_name: str, runtime_settings):
         return extract_bom_from_ocr_text(raw_lines, product_name)
 
 
+def call_has_baidu_free_quota(api_name: str, runtime_settings) -> bool:
+    """兼容测试替换后的百度OCR额度函数。"""
+    try:
+        return has_baidu_free_quota(api_name, runtime_settings=runtime_settings)
+    except TypeError as error:
+        if "unexpected keyword argument" not in str(error):
+            raise
+        return has_baidu_free_quota(api_name)
+
+
+def call_ocr_table_with_baidu(image_bytes: bytes, runtime_settings) -> list[list[str]]:
+    """兼容测试替换后的百度OCR表格函数。"""
+    try:
+        return ocr_table_with_baidu(image_bytes, runtime_settings=runtime_settings)
+    except TypeError as error:
+        if "unexpected keyword argument" not in str(error):
+            raise
+        return ocr_table_with_baidu(image_bytes)
+
+
 @router.post("/upload")
 async def upload_ocr_image(
     file: UploadFile,
@@ -50,18 +71,23 @@ async def upload_ocr_image(
     image_bytes = await file.read()
     normalized_mode = mode.lower()
     warnings = []
-    if normalized_mode not in {"auto", "paddle", "baidu"}:
-        return {"code": 1, "msg": "OCR模式不支持，请使用auto、paddle或baidu", "data": {}}
+    if normalized_mode not in {"auto", "paddle", "baidu", "baidu_enhanced"}:
+        return {"code": 1, "msg": "OCR模式不支持，请使用auto、paddle、baidu或baidu_enhanced", "data": {}}
 
-    use_baidu = normalized_mode == "baidu" or (
-        normalized_mode == "auto" and is_table_image(image_bytes) and has_baidu_free_quota("table_v2")
+    table_like = is_table_image(image_bytes)
+    use_enhanced_baidu = normalized_mode == "baidu_enhanced" or (normalized_mode == "auto" and table_like)
+    use_baidu = normalized_mode in {"baidu", "baidu_enhanced"} or (
+        normalized_mode == "auto"
+        and table_like
+        and call_has_baidu_free_quota("table_v2", runtime_settings)
     )
-    if normalized_mode == "auto" and is_table_image(image_bytes) and not has_baidu_free_quota("table_v2"):
+    if normalized_mode == "auto" and table_like and not call_has_baidu_free_quota("table_v2", runtime_settings):
         warnings.append("百度OCR免费额度不足，已自动切换PaddleOCR")
 
     if use_baidu:
         try:
-            table = ocr_table_with_baidu(image_bytes)
+            ocr_image_bytes = enhance_table_photo_for_ocr(image_bytes) if use_enhanced_baidu else image_bytes
+            table = call_ocr_table_with_baidu(ocr_image_bytes, runtime_settings)
             raw_lines = [" | ".join(cell for cell in row if cell) for row in table]
             extracted = table_to_bom_items(table, product_name, ai_enabled=runtime_settings.ai_enabled)
             processing_time_ms = int((time.perf_counter() - start_time) * 1000)
@@ -73,12 +99,12 @@ async def upload_ocr_image(
                     "table": table,
                     "extracted": extracted,
                     "processing_time_ms": processing_time_ms,
-                    "mode": "baidu",
+                    "mode": "baidu_enhanced" if use_enhanced_baidu else "baidu",
                     "warnings": warnings,
                 },
             }
         except Exception as error:
-            if normalized_mode == "baidu":
+            if normalized_mode in {"baidu", "baidu_enhanced"}:
                 return {"code": 1, "msg": str(error), "data": {}}
             warnings.append("百度OCR不可用，已自动切换PaddleOCR")
 

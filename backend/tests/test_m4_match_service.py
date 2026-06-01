@@ -162,6 +162,33 @@ def test_llm_judge_selects_candidate(monkeypatch):
     assert result.match_level == "llm"
 
 
+def test_llm_judge_accepts_compatible_string_response(monkeypatch):
+    from app.services import match_service
+
+    candidates = [
+        {"code": "M001", "name": "铜柱", "spec": "M3x10", "score": 0.82},
+        {"code": "M002", "name": "螺钉", "spec": "M6x20", "score": 0.65},
+    ]
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            assert kwargs["model"]
+            return '{"matched_code": "M001", "confidence": 0.87, "reason": "中转站返回纯文本"}'
+
+    class FakeChat:
+        completions = FakeCompletions()
+
+    class FakeClient:
+        chat = FakeChat()
+
+    monkeypatch.setattr(match_service, "create_openai_client", lambda: FakeClient())
+
+    result = match_service.llm_judge("铜柱子", candidates)
+
+    assert result.matched_code == "M001"
+    assert result.confidence == 0.87
+
+
 @pytest.mark.asyncio
 async def test_match_material_returns_embedding_when_first_score_is_clear(test_session, monkeypatch):
     from app.services import match_service

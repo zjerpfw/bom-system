@@ -276,4 +276,25 @@ onMounted(loadStats);
 .error-list p {
   margin: 8px 0 0;
 }
+
+@media (min-width: 900px) {
+  .page-body {
+    display: grid;
+    grid-template-columns: minmax(360px, 460px) minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
+  }
+
+  .status-section {
+    grid-column: 1 / -1;
+  }
+
+  .material-section {
+    margin-bottom: 0;
+  }
+
+  .upload-pick {
+    min-height: 160px;
+  }
+}
 </style>

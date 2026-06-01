@@ -22,6 +22,63 @@ def create_table_image_bytes() -> bytes:
     return buffer.tobytes()
 
 
+def test_enhance_table_photo_for_ocr_crops_photo_background():
+    from app.services.ocr_service import decode_image, enhance_table_photo_for_ocr
+
+    image = np.full((520, 720, 3), 210, dtype=np.uint8)
+    table = np.full((260, 460, 3), 255, dtype=np.uint8)
+    for y in [20, 80, 140, 200, 240]:
+        cv2.line(table, (20, y), (440, y), (0, 0, 0), 2)
+    for x in [20, 130, 260, 340, 440]:
+        cv2.line(table, (x, 20), (x, 240), (0, 0, 0), 2)
+
+    source_points = np.float32([[0, 0], [459, 0], [459, 259], [0, 259]])
+    target_points = np.float32([[120, 80], [610, 55], [640, 430], [80, 450]])
+    matrix = cv2.getPerspectiveTransform(source_points, target_points)
+    warped_table = cv2.warpPerspective(table, matrix, (720, 520), borderValue=(210, 210, 210))
+    mask = cv2.warpPerspective(np.full((260, 460), 255, dtype=np.uint8), matrix, (720, 520))
+    image[mask > 0] = warped_table[mask > 0]
+
+    success, buffer = cv2.imencode(".jpg", image)
+    assert success
+
+    enhanced = decode_image(enhance_table_photo_for_ocr(buffer.tobytes()))
+
+    assert enhanced.shape[0] < image.shape[0]
+    assert enhanced.shape[1] < image.shape[1]
+    assert enhanced.shape[0] > 180
+    assert enhanced.shape[1] > 300
+
+
+def test_auto_mode_sends_enhanced_image_to_baidu(monkeypatch):
+    import main
+    from app.api import ocr
+
+    captured = {}
+
+    monkeypatch.setattr(ocr, "is_table_image", lambda image_bytes: True)
+    monkeypatch.setattr(ocr, "has_baidu_free_quota", lambda api_name="table_v2": True)
+    monkeypatch.setattr(ocr, "enhance_table_photo_for_ocr", lambda image_bytes: b"enhanced-image")
+
+    def fake_baidu(image_bytes):
+        captured["image_bytes"] = image_bytes
+        return [["序号", "名称", "用量", "单位"], ["1", "铜柱", "4", "个"]]
+
+    monkeypatch.setattr(ocr, "ocr_table_with_baidu", fake_baidu)
+    client = TestClient(main.app)
+
+    response = client.post(
+        "/api/ocr/upload",
+        data={"product_name": "测试夹具", "mode": "auto"},
+        files={"file": ("table.png", create_table_image_bytes(), "image/png")},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["code"] == 0
+    assert response.json()["data"]["mode"] == "baidu_enhanced"
+    assert captured["image_bytes"] == b"enhanced-image"
+
+
 def test_get_baidu_access_token_uses_cache(monkeypatch):
     from app.core.config import get_settings
     from app.services import ocr_service
@@ -173,6 +230,26 @@ def test_baidu_mode_without_keys_returns_friendly_error(monkeypatch):
     response = client.post(
         "/api/ocr/upload",
         data={"product_name": "测试夹具", "mode": "baidu"},
+        files={"file": ("table.png", create_table_image_bytes(), "image/png")},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["code"] == 1
+    assert "百度OCR密钥未配置" in response.json()["msg"]
+
+
+def test_baidu_enhanced_mode_without_keys_returns_friendly_error(monkeypatch):
+    import main
+    from app.core.config import get_settings
+
+    monkeypatch.delenv("BAIDU_OCR_API_KEY", raising=False)
+    monkeypatch.delenv("BAIDU_OCR_SECRET_KEY", raising=False)
+    get_settings.cache_clear()
+    client = TestClient(main.app)
+
+    response = client.post(
+        "/api/ocr/upload",
+        data={"product_name": "测试夹具", "mode": "baidu_enhanced"},
         files={"file": ("table.png", create_table_image_bytes(), "image/png")},
     )
 

@@ -63,7 +63,7 @@ onMounted(loadDashboard);
     <div class="page-body">
       <van-loading v-if="loading" color="#1D9E75" size="28px" vertical>正在加载</van-loading>
 
-      <van-grid v-else :column-num="2" :border="false" :gutter="10">
+      <van-grid v-else class="stats-grid" :column-num="2" :border="false" :gutter="10">
         <van-grid-item>
           <div class="surface stat-card">
             <div class="stat-value">{{ dashboard.pending }}</div>
@@ -130,6 +130,10 @@ onMounted(loadDashboard);
 </template>
 
 <style scoped>
+.stats-grid {
+  width: 100%;
+}
+
 .product-progress {
   display: grid;
   grid-template-columns: 52px 1fr;
@@ -146,5 +150,25 @@ onMounted(loadDashboard);
   border-color: #1D9E75;
   color: #1D9E75;
   font-size: 16px;
+}
+
+@media (min-width: 900px) {
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .stats-grid :deep(.van-grid-item) {
+    width: 100% !important;
+  }
+
+  .action-row {
+    width: min(680px, 100%);
+  }
+
+  .product-progress {
+    grid-template-columns: 68px minmax(260px, 1fr);
+  }
 }
 </style>

@@ -1,4 +1,4 @@
-:root {
+:root:root {
   --color-primary: #1d9e75;
   --color-primary-dark: #0f7658;
   --color-bg: #f4f8f6;
@@ -9,6 +9,13 @@
   --color-warning: #f59e0b;
   --color-danger: #d64545;
   --shadow-soft: 0 12px 30px rgba(15, 118, 88, 0.1);
+  --van-primary-color: #1d9e75;
+  --van-success-color: #1d9e75;
+  --van-button-primary-background: #1d9e75;
+  --van-button-primary-border-color: #1d9e75;
+  --van-cell-text-color: #18201d;
+  --van-text-color: #18201d;
+  --van-text-color-2: #667085;
   font-family:
     Inter, "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--color-text);
@@ -34,8 +41,124 @@ textarea {
 }
 
 .app-shell {
+  display: flex;
   min-height: 100vh;
   background: var(--color-bg);
+}
+
+.desktop-sidebar {
+  position: sticky;
+  top: 0;
+  display: none;
+  width: 248px;
+  height: 100vh;
+  flex: 0 0 248px;
+  padding: 22px 14px;
+  border-right: 1px solid var(--color-border);
+  background: #ffffff;
+}
+
+.brand-block {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px 22px;
+}
+
+.brand-mark {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 8px;
+  color: #ffffff;
+  background: var(--color-primary);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.brand-block strong {
+  display: block;
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+.brand-block span {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.desktop-nav {
+  display: grid;
+  gap: 6px;
+}
+
+.desktop-nav-item {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--color-muted);
+  text-decoration: none;
+}
+
+.desktop-nav-item:hover,
+.desktop-nav-item.active {
+  color: var(--color-primary-dark);
+  background: #eaf7f2;
+}
+
+.desktop-nav-item .van-icon {
+  font-size: 21px;
+}
+
+.desktop-nav-item strong,
+.desktop-nav-item small {
+  display: block;
+}
+
+.desktop-nav-item strong {
+  color: inherit;
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.desktop-nav-item small {
+  margin-top: 3px;
+  color: #7b8794;
+  font-size: 12px;
+}
+
+.workspace {
+  min-width: 0;
+  flex: 1;
+}
+
+.desktop-header {
+  display: none;
+  min-height: 76px;
+  align-items: center;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--color-border);
+  background: rgba(244, 248, 246, 0.92);
+  backdrop-filter: blur(10px);
+}
+
+.desktop-header h1 {
+  margin: 2px 0 0;
+  font-size: 24px;
+  line-height: 1.25;
+}
+
+.header-kicker {
+  color: var(--color-muted);
+  font-size: 13px;
 }
 
 .app-main {
@@ -153,4 +276,109 @@ textarea {
 
 .van-tabbar-item {
   font-size: 13px;
+}
+
+.van-toast {
+  max-width: min(420px, calc(100vw - 32px));
+  color: #ffffff !important;
+  background: rgba(24, 32, 29, 0.94) !important;
+  font-size: 16px !important;
+  line-height: 1.5 !important;
+  z-index: 9999 !important;
+}
+
+.van-toast__text,
+.van-toast__html,
+.van-toast__loading,
+.van-toast .van-icon {
+  color: #ffffff !important;
+}
+
+.van-dialog,
+.van-popup,
+.van-action-sheet {
+  color: var(--color-text);
+}
+
+.van-dialog__message,
+.van-dialog__header,
+.van-action-sheet__header,
+.van-action-sheet__description,
+.van-notify {
+  color: var(--color-text) !important;
+}
+
+.van-field__control,
+.van-cell__title,
+.van-cell__value,
+.van-cell__label {
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 900px) {
+  body {
+    min-width: 900px;
+  }
+
+  .desktop-sidebar,
+  .desktop-header {
+    display: block;
+  }
+
+  .desktop-header {
+    display: flex;
+  }
+
+  .mobile-tabbar.van-tabbar,
+  .page > .van-nav-bar,
+  .page > .van-nav-bar__placeholder {
+    display: none !important;
+  }
+
+  .app-main {
+    min-height: calc(100vh - 76px);
+    padding: 0;
+  }
+
+  .page {
+    min-height: calc(100vh - 76px);
+    padding: 22px 28px 36px;
+  }
+
+  .page-body {
+    width: min(1180px, 100%);
+    padding: 0;
+  }
+
+  .hero-panel {
+    width: min(1180px, 100%);
+    border-radius: 8px;
+    padding: 22px 24px;
+  }
+
+  .hero-title {
+    font-size: 28px;
+  }
+
+  .section-title {
+    margin-top: 24px;
+  }
+
+  .van-grid-item__content {
+    padding: 0;
+    background: transparent;
+  }
+
+  .stat-card {
+    min-height: 118px;
+    padding: 20px;
+  }
+
+  .stat-value {
+    font-size: 34px;
+  }
+
+  .touch-button {
+    min-height: 44px;
+  }
 }

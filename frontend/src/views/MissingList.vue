@@ -118,4 +118,23 @@ onMounted(() => loadItems(true));
   font-size: 17px;
   font-weight: 800;
 }
+
+@media (min-width: 900px) {
+  .missing-tip {
+    width: min(1180px, 100%);
+    margin: 0 0 16px;
+  }
+
+  .missing-list {
+    width: min(1180px, 100%);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 0 0 30px;
+  }
+}
+
+@media (min-width: 1320px) {
+  .missing-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
 </style>

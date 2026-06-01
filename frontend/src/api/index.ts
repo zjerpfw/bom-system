@@ -91,6 +91,14 @@ export interface SystemSettingsData {
     qianfan_api_key_configured: boolean;
     qianfan_base_url: string;
     qianfan_embedding_model: string;
+    baidu_ocr_app_id: string;
+    baidu_ocr_api_key_configured: boolean;
+    baidu_ocr_secret_key_configured: boolean;
+    baidu_ocr_account_type: string;
+    baidu_ocr_free_quota_safety_buffer: number;
+    baidu_ocr_table_monthly_free_limit?: number | null;
+    baidu_ocr_general_monthly_free_limit?: number | null;
+    baidu_ocr_handwriting_monthly_free_limit?: number | null;
     ai_match_mode: string;
     ocr_extract_mode: string;
   };

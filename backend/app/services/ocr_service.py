@@ -14,7 +14,7 @@ import httpx
 import numpy as np
 
 from app.core.config import get_settings
-from app.core.openai_client import create_openai_client
+from app.core.openai_client import create_openai_client, extract_text_from_openai_response
 from app.core.paths import get_data_dir
 
 
@@ -106,11 +106,16 @@ def normalize_text(text: str) -> str:
     return re.sub(r"\s+", " ", normalized).strip()
 
 
-def ensure_baidu_configured() -> None:
+def get_baidu_runtime_settings(runtime_settings=None):
+    """获取百度OCR可用配置快照。"""
+    return runtime_settings or get_settings()
+
+
+def ensure_baidu_configured(runtime_settings=None) -> None:
     """确认百度OCR密钥已配置。"""
-    settings = get_settings()
+    settings = get_baidu_runtime_settings(runtime_settings)
     if not settings.baidu_ocr_api_key or not settings.baidu_ocr_secret_key:
-        raise RuntimeError("百度OCR密钥未配置，请在.env中设置BAIDU_OCR_API_KEY和BAIDU_OCR_SECRET_KEY")
+        raise RuntimeError("百度OCR密钥未配置，请在系统设置中填写百度OCR API Key和Secret Key")
 
 
 def read_baidu_usage() -> dict:
@@ -143,9 +148,9 @@ def get_baidu_usage_month() -> str:
     return f"{today.year:04d}-{today.month:02d}"
 
 
-def get_baidu_monthly_free_limit(api_name: str) -> int:
+def get_baidu_monthly_free_limit(api_name: str, runtime_settings=None) -> int:
     """获取百度OCR接口月度免费额度。"""
-    settings = get_settings()
+    settings = get_baidu_runtime_settings(runtime_settings)
     api_config = get_baidu_api_config(api_name)
     configured_limit = getattr(settings, api_config.env_limit_field)
     if configured_limit is not None:
@@ -155,17 +160,17 @@ def get_baidu_monthly_free_limit(api_name: str) -> int:
     return api_config.personal_monthly_limit
 
 
-def get_baidu_quota_status(api_name: str = "table_v2") -> dict:
+def get_baidu_quota_status(api_name: str = "table_v2", runtime_settings=None) -> dict:
     """查询百度OCR本地免费额度状态。"""
     api_config = get_baidu_api_config(api_name)
-    settings = get_settings()
+    settings = get_baidu_runtime_settings(runtime_settings)
     usage_month = get_baidu_usage_month()
     usage = read_baidu_usage()
     month_usage = usage.get(usage_month, {})
     if isinstance(month_usage, int):
         month_usage = {"table_v2": month_usage}
     used_count = int(month_usage.get(api_name, 0))
-    monthly_limit = get_baidu_monthly_free_limit(api_name)
+    monthly_limit = get_baidu_monthly_free_limit(api_name, runtime_settings=runtime_settings)
     safe_limit = max(monthly_limit - settings.baidu_ocr_free_quota_safety_buffer, 0)
     remaining_count = max(safe_limit - used_count, 0)
     return {
@@ -181,15 +186,15 @@ def get_baidu_quota_status(api_name: str = "table_v2") -> dict:
     }
 
 
-def has_baidu_free_quota(api_name: str = "table_v2") -> bool:
+def has_baidu_free_quota(api_name: str = "table_v2", runtime_settings=None) -> bool:
     """判断百度OCR接口是否还有免费额度。"""
-    return get_baidu_quota_status(api_name)["remaining"] > 0
+    return get_baidu_quota_status(api_name, runtime_settings=runtime_settings)["remaining"] > 0
 
 
-def reserve_baidu_free_quota(api_name: str = "table_v2") -> None:
+def reserve_baidu_free_quota(api_name: str = "table_v2", runtime_settings=None) -> None:
     """预占一次百度OCR免费额度，失败调用也会消耗资源。"""
-    if not has_baidu_free_quota(api_name):
-        status = get_baidu_quota_status(api_name)
+    if not has_baidu_free_quota(api_name, runtime_settings=runtime_settings):
+        status = get_baidu_quota_status(api_name, runtime_settings=runtime_settings)
         raise RuntimeError(
             f"百度OCR免费额度保护已触发，{status['title']}本月剩余额度不足，已阻止云端调用"
         )
@@ -203,28 +208,39 @@ def reserve_baidu_free_quota(api_name: str = "table_v2") -> None:
     write_baidu_usage(usage)
 
 
-def ensure_baidu_free_quota(api_name: str = "table_v2") -> None:
+def ensure_baidu_free_quota(api_name: str = "table_v2", runtime_settings=None) -> None:
     """兼容旧调用的百度OCR免费额度检查。"""
-    if not has_baidu_free_quota(api_name):
-        status = get_baidu_quota_status(api_name)
+    if not has_baidu_free_quota(api_name, runtime_settings=runtime_settings):
+        status = get_baidu_quota_status(api_name, runtime_settings=runtime_settings)
         raise RuntimeError(
             f"百度OCR免费额度保护已触发，{status['title']}本月剩余额度不足，已阻止云端调用"
         )
 
 
-def record_baidu_table_call() -> None:
+def record_baidu_table_call(runtime_settings=None) -> None:
     """兼容旧调用的百度表格OCR计数。"""
-    reserve_baidu_free_quota("table_v2")
+    reserve_baidu_free_quota("table_v2", runtime_settings=runtime_settings)
 
 
-def get_baidu_access_token() -> str:
+def call_get_baidu_access_token(runtime_settings=None) -> str:
+    """兼容测试替换后的百度token函数。"""
+    if runtime_settings is None:
+        return get_baidu_access_token()
+    return get_baidu_access_token(runtime_settings=runtime_settings)
+
+
+def get_baidu_access_token(runtime_settings=None) -> str:
     """获取并缓存百度OCR access_token。"""
-    ensure_baidu_configured()
+    ensure_baidu_configured(runtime_settings=runtime_settings)
     now = time.time()
-    if _baidu_token_cache["access_token"] and _baidu_token_cache["expires_at"] > now:
+    settings = get_baidu_runtime_settings(runtime_settings)
+    if (
+        _baidu_token_cache["access_token"]
+        and _baidu_token_cache["expires_at"] > now
+        and _baidu_token_cache.get("api_key") == settings.baidu_ocr_api_key
+    ):
         return _baidu_token_cache["access_token"]
 
-    settings = get_settings()
     response = httpx.post(
         BAIDU_TOKEN_URL,
         params={
@@ -243,6 +259,7 @@ def get_baidu_access_token() -> str:
     expires_in = int(data.get("expires_in", 60 * 60 * 24 * 28))
     _baidu_token_cache["access_token"] = access_token
     _baidu_token_cache["expires_at"] = now + max(expires_in - 3600, 60)
+    _baidu_token_cache["api_key"] = settings.baidu_ocr_api_key
     return access_token
 
 
@@ -313,6 +330,103 @@ def is_table_image(image_bytes: bytes) -> bool:
     vertical_lines = cv2.morphologyEx(edges, cv2.MORPH_OPEN, vertical_kernel)
     line_density = (cv2.countNonZero(horizontal_lines) + cv2.countNonZero(vertical_lines)) / max(width * height, 1)
     return line_density > 0.01 or aspect_ratio > 1.8
+
+
+def order_quad_points(points: np.ndarray) -> np.ndarray:
+    """按左上、右上、右下、左下顺序排列四点。"""
+    points = points.astype("float32")
+    sums = points.sum(axis=1)
+    diffs = np.diff(points, axis=1).reshape(-1)
+    return np.array(
+        [
+            points[np.argmin(sums)],
+            points[np.argmin(diffs)],
+            points[np.argmax(sums)],
+            points[np.argmax(diffs)],
+        ],
+        dtype="float32",
+    )
+
+
+def find_table_quad(image: np.ndarray) -> np.ndarray | None:
+    """检测照片中的表格四边形。"""
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    enhanced_gray = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(gray_image)
+    binary_image = cv2.adaptiveThreshold(
+        enhanced_gray,
+        255,
+        cv2.ADAPTIVE_THRESH_MEAN_C,
+        cv2.THRESH_BINARY_INV,
+        31,
+        15,
+    )
+    height, width = binary_image.shape[:2]
+    horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (max(width // 18, 40), 1))
+    vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, max(height // 25, 40)))
+    horizontal_lines = cv2.morphologyEx(binary_image, cv2.MORPH_OPEN, horizontal_kernel)
+    vertical_lines = cv2.morphologyEx(binary_image, cv2.MORPH_OPEN, vertical_kernel)
+    table_lines = cv2.bitwise_or(horizontal_lines, vertical_lines)
+    table_lines = cv2.dilate(table_lines, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)), iterations=2)
+    contours, _ = cv2.findContours(table_lines, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return None
+
+    image_area = height * width
+    candidates = sorted(contours, key=cv2.contourArea, reverse=True)
+    for contour in candidates:
+        x, y, rect_width, rect_height = cv2.boundingRect(contour)
+        if rect_width * rect_height < image_area * 0.08:
+            continue
+        hull = cv2.convexHull(contour)
+        perimeter = cv2.arcLength(hull, True)
+        approx = cv2.approxPolyDP(hull, 0.03 * perimeter, True)
+        if len(approx) == 4:
+            return order_quad_points(approx.reshape(4, 2))
+        rect = cv2.minAreaRect(hull)
+        return order_quad_points(cv2.boxPoints(rect))
+    return None
+
+
+def warp_table_image(image: np.ndarray, quad: np.ndarray) -> np.ndarray:
+    """按表格四边形做透视矫正。"""
+    ordered = order_quad_points(quad)
+    top_width = np.linalg.norm(ordered[1] - ordered[0])
+    bottom_width = np.linalg.norm(ordered[2] - ordered[3])
+    left_height = np.linalg.norm(ordered[3] - ordered[0])
+    right_height = np.linalg.norm(ordered[2] - ordered[1])
+    target_width = int(max(top_width, bottom_width))
+    target_height = int(max(left_height, right_height))
+    if target_width < 20 or target_height < 20:
+        return image
+    target = np.array(
+        [[0, 0], [target_width - 1, 0], [target_width - 1, target_height - 1], [0, target_height - 1]],
+        dtype="float32",
+    )
+    matrix = cv2.getPerspectiveTransform(ordered, target)
+    return cv2.warpPerspective(image, matrix, (target_width, target_height), borderValue=(255, 255, 255))
+
+
+def enhance_table_contrast(image: np.ndarray) -> np.ndarray:
+    """增强表格图片对比度并保留三通道。"""
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    denoised = cv2.fastNlMeansDenoising(gray_image, None, 10, 7, 21)
+    enhanced_gray = cv2.createCLAHE(clipLimit=2.4, tileGridSize=(8, 8)).apply(denoised)
+    sharpen_kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+    sharpened = cv2.filter2D(enhanced_gray, -1, sharpen_kernel)
+    return cv2.cvtColor(sharpened, cv2.COLOR_GRAY2BGR)
+
+
+def enhance_table_photo_for_ocr(image_bytes: bytes) -> bytes:
+    """增强手机拍照表格，供百度表格OCR识别。"""
+    image = decode_image(image_bytes)
+    quad = find_table_quad(image)
+    if quad is not None:
+        image = warp_table_image(image, quad)
+    enhanced_image = enhance_table_contrast(image)
+    success, buffer = cv2.imencode(".jpg", enhanced_image, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+    if not success:
+        raise RuntimeError("表格图片增强失败")
+    return buffer.tobytes()
 
 
 def get_paddle_ocr():
@@ -429,10 +543,10 @@ def build_table_from_cells(cells: list[dict]) -> list[list[str]]:
     return table
 
 
-def ocr_table_with_baidu(image_bytes: bytes) -> list[list[str]]:
+def ocr_table_with_baidu(image_bytes: bytes, runtime_settings=None) -> list[list[str]]:
     """调用百度OCR表格识别并返回二维表格。"""
-    reserve_baidu_free_quota("table_v2")
-    access_token = get_baidu_access_token()
+    reserve_baidu_free_quota("table_v2", runtime_settings=runtime_settings)
+    access_token = call_get_baidu_access_token(runtime_settings=runtime_settings)
     image_base64 = base64.b64encode(image_bytes).decode("utf-8")
     response = httpx.post(
         BAIDU_TABLE_URL,
@@ -496,6 +610,14 @@ def table_row_to_line(row: list[str]) -> str:
     return " ".join(normalize_text(cell) for cell in row if normalize_text(cell))
 
 
+def get_cell_by_mapping(cells: list[str], mapping: dict[str, int], field_name: str) -> str:
+    """按字段映射安全读取单元格。"""
+    col_index = mapping.get(field_name)
+    if col_index is None or col_index < 0 or col_index >= len(cells):
+        return ""
+    return cells[col_index]
+
+
 def table_to_bom_items(table: list[list[str]], product_name: str, ai_enabled: bool | None = None) -> dict:
     """将百度OCR表格转换为BOM结构。"""
     header_index, mapping = find_header_row(table)
@@ -515,16 +637,16 @@ def table_to_bom_items(table: list[list[str]], product_name: str, ai_enabled: bo
             continue
         seen_rows.add(row_key)
 
-        name = normalized_cells[mapping["name"]] if mapping.get("name", -1) < len(normalized_cells) else ""
+        name = get_cell_by_mapping(normalized_cells, mapping, "name")
         if not name:
             fallback_line = table_row_to_line(row)
             if fallback_line:
                 fallback_lines.append(fallback_line)
             continue
 
-        spec = normalized_cells[mapping["spec"]] if mapping.get("spec", -1) < len(normalized_cells) else None
-        unit = normalized_cells[mapping["unit"]] if mapping.get("unit", -1) < len(normalized_cells) else None
-        quantity_text = normalized_cells[mapping["quantity"]] if mapping.get("quantity", -1) < len(normalized_cells) else ""
+        spec = get_cell_by_mapping(normalized_cells, mapping, "spec")
+        unit = get_cell_by_mapping(normalized_cells, mapping, "unit")
+        quantity_text = get_cell_by_mapping(normalized_cells, mapping, "quantity")
         quantity = parse_quantity(quantity_text)
         items.append(
             {
@@ -570,6 +692,97 @@ def infer_unit(token: str) -> bool:
     return token in {"个", "件", "套", "pcs", "PCS", "片", "只", "台", "米", "kg", "KG"}
 
 
+def looks_like_serial_number(token: str) -> bool:
+    """判断分词是否像表格序号。"""
+    return bool(re.fullmatch(r"\d{1,3}", normalize_text(token)))
+
+
+def looks_like_spec_token(token: str) -> bool:
+    """判断分词是否像规格型号。"""
+    text = normalize_text(token)
+    if not text or infer_unit(text):
+        return False
+    has_digit = bool(re.search(r"\d", text))
+    has_spec_mark = bool(re.search(r"[A-Za-zxX*./-]|mm|cm|uf|ohm|Ω|μ", text, flags=re.IGNORECASE))
+    return has_digit and has_spec_mark
+
+
+def is_fragment_noise(token: str) -> bool:
+    """判断PaddleOCR碎片是否为表头或说明。"""
+    text = normalize_text(token)
+    if not text:
+        return True
+    exact_headers = {"序号", "名称", "规格", "规格型号", "型号", "数量", "用量", "单位", "用量单位"}
+    if text in exact_headers:
+        return True
+    if text.lower() in {"name", "spec", "qty", "unit"}:
+        return True
+    return "产品名称" in text or "页码" in text
+
+
+def find_previous_name_token(tokens: list[str], index: int) -> str | None:
+    """从序号左侧寻找物料名称。"""
+    for cursor in range(index - 1, max(index - 5, -1), -1):
+        token = tokens[cursor]
+        if is_fragment_noise(token) or infer_unit(token) or looks_like_serial_number(token):
+            continue
+        return token
+    return None
+
+
+def find_nearby_unit(tokens: list[str], index: int, quantity_index: int | None) -> str | None:
+    """从序号或数量附近推断单位。"""
+    for cursor in range(index - 1, max(index - 4, -1), -1):
+        if infer_unit(tokens[cursor]):
+            return tokens[cursor]
+    if quantity_index is not None:
+        for cursor in range(quantity_index + 1, min(quantity_index + 3, len(tokens))):
+            if infer_unit(tokens[cursor]):
+                return tokens[cursor]
+    return None
+
+
+def rule_extract_fragmented_table(raw_lines: list[str]) -> list[dict]:
+    """从PaddleOCR拆散的表格文本中提取BOM条目。"""
+    tokens = [normalize_text(line) for line in raw_lines if normalize_text(line)]
+    items = []
+    for index, token in enumerate(tokens):
+        if not looks_like_serial_number(token):
+            continue
+        next_token = tokens[index + 1] if index + 1 < len(tokens) else ""
+        if not looks_like_spec_token(next_token):
+            continue
+
+        name = find_previous_name_token(tokens, index)
+        if not name:
+            continue
+
+        spec = next_token
+        quantity = None
+        quantity_index = None
+        for cursor in range(index + 2, min(index + 5, len(tokens))):
+            candidate = tokens[cursor]
+            parsed_quantity = parse_quantity(candidate)
+            if parsed_quantity is not None and not looks_like_spec_token(candidate):
+                quantity = parsed_quantity
+                quantity_index = cursor
+                break
+            if looks_like_serial_number(candidate) or is_fragment_noise(candidate) or infer_unit(candidate):
+                continue
+
+        items.append(
+            {
+                "name": name,
+                "spec": spec or None,
+                "quantity": quantity,
+                "unit": find_nearby_unit(tokens, index, quantity_index),
+                "level": 1,
+                "confidence": 0.58,
+            }
+        )
+    return items
+
+
 def rule_extract_line(line: str) -> dict | None:
     """用规则从一行文本提取BOM条目。"""
     text = remove_leading_index(normalize_text(line))
@@ -611,8 +824,9 @@ def rule_extract_bom_from_ocr_text(raw_lines: list[str], product_name: str) -> d
     """无AI模式下用简单规则提取BOM结构。"""
     items = []
     seen = set()
-    for line in raw_lines:
-        item = rule_extract_line(line)
+    candidates = [rule_extract_line(line) for line in raw_lines]
+    candidates.extend(rule_extract_fragmented_table(raw_lines))
+    for item in candidates:
         if not item:
             continue
         row_key = json.dumps(item, ensure_ascii=False, sort_keys=True)
@@ -653,5 +867,5 @@ def extract_bom_from_ocr_text(raw_lines: list[str], product_name: str, ai_enable
         ],
         temperature=0,
     )
-    content = response.choices[0].message.content or "{}"
+    content = extract_text_from_openai_response(response) or "{}"
     return json.loads(strip_markdown_json(content))

@@ -9,6 +9,7 @@ const router = useRouter();
 const productName = ref("");
 const activeTab = ref("file");
 const fileList = ref<Array<{ file?: File; url?: string; name?: string }>>([]);
+const ocrMode = ref("auto");
 const loading = ref(false);
 const uploadResult = ref<OcrUploadResult | null>(null);
 
@@ -27,7 +28,7 @@ async function handleAfterRead(fileItem: { file?: File } | { file?: File }[]) {
   }
   loading.value = true;
   try {
-    uploadResult.value = await uploadOcrFile(current.file, productName.value.trim());
+    uploadResult.value = await uploadOcrFile(current.file, productName.value.trim(), ocrMode.value);
     showSuccessToast("识别完成");
   } catch {
     showFailToast("识别失败，请换一张更清晰的图纸");
@@ -71,63 +72,82 @@ async function submitBom() {
   <div class="page">
     <van-nav-bar title="上传图纸" fixed placeholder />
     <div class="page-body">
-      <van-field
-        v-model="productName"
-        class="product-input"
-        label="产品名称"
-        placeholder="请输入产品名称"
-        clearable
-        required
-      />
-
-      <van-tabs v-model:active="activeTab" class="upload-tabs" color="#1D9E75" title-active-color="#1D9E75">
-        <van-tab title="文件上传" name="file">
-          <section class="upload-zone surface">
-            <van-uploader
-              v-model="fileList"
-              :max-count="1"
-              :after-read="handleAfterRead"
-              accept="image/*,.xls,.xlsx,.csv"
-              upload-icon="plus"
-            >
-              <div class="upload-box">
-                <van-icon name="upgrade" size="42" color="#1D9E75" />
-                <strong>点击上传图纸或Excel</strong>
-                <span>支持拍照、截图、表格文件</span>
-              </div>
-            </van-uploader>
-          </section>
-        </van-tab>
-        <van-tab title="语音录入" name="voice">
-          <VoiceCapture @submit="handleVoiceSubmit" />
-        </van-tab>
-      </van-tabs>
-
-      <van-loading v-if="loading" class="upload-loading" color="#1D9E75" vertical>
-        正在识别，请稍候
-      </van-loading>
-
-      <template v-if="uploadResult">
-        <h2 class="section-title">识别预览</h2>
-        <div class="surface preview-list">
-          <van-cell
-            v-for="(item, index) in extractedItems"
-            :key="`${item.name}-${index}`"
-            :title="item.name"
-            :label="`${item.spec || '无规格'} · ${item.quantity ?? '-'} ${item.unit || ''}`"
+      <div class="upload-workspace">
+        <section class="upload-controls">
+          <van-field
+            v-model="productName"
+            class="product-input"
+            label="产品名称"
+            placeholder="请输入产品名称"
+            clearable
+            required
           />
-          <div v-if="!extractedItems.length" class="empty-note">未提取到物料条目</div>
-        </div>
-        <van-button
-          class="submit-button primary-button"
-          type="primary"
-          block
-          :disabled="!extractedItems.length"
-          @click="submitBom"
-        >
-          确认提交审核
-        </van-button>
-      </template>
+
+          <van-tabs v-model:active="activeTab" class="upload-tabs" color="#1D9E75" title-active-color="#1D9E75">
+            <van-tab title="文件上传" name="file">
+              <section class="surface mode-section">
+                <div class="mode-title">识别模式</div>
+                <van-radio-group v-model="ocrMode" class="mode-list">
+                  <van-radio name="auto" checked-color="#1D9E75">自动识别</van-radio>
+                  <van-radio name="baidu_enhanced" checked-color="#1D9E75">拍照表格增强</van-radio>
+                  <van-radio name="baidu" checked-color="#1D9E75">百度原图表格</van-radio>
+                  <van-radio name="paddle" checked-color="#1D9E75">本地文字识别</van-radio>
+                </van-radio-group>
+              </section>
+              <section class="upload-zone surface">
+                <van-uploader
+                  v-model="fileList"
+                  :max-count="1"
+                  :after-read="handleAfterRead"
+                  accept="image/*,.xls,.xlsx,.csv"
+                  upload-icon="plus"
+                >
+                  <div class="upload-box">
+                    <van-icon name="upgrade" size="42" color="#1D9E75" />
+                    <strong>点击上传图纸或Excel</strong>
+                    <span>支持拍照、截图、表格文件</span>
+                  </div>
+                </van-uploader>
+              </section>
+            </van-tab>
+            <van-tab title="语音录入" name="voice">
+              <VoiceCapture @submit="handleVoiceSubmit" />
+            </van-tab>
+          </van-tabs>
+        </section>
+
+        <section class="upload-preview">
+          <van-loading v-if="loading" class="upload-loading" color="#1D9E75" vertical>
+            正在识别，请稍候
+          </van-loading>
+
+          <template v-if="uploadResult">
+            <h2 class="section-title">识别预览</h2>
+            <div class="surface preview-list">
+              <van-cell
+                v-for="(item, index) in extractedItems"
+                :key="`${item.name}-${index}`"
+                :title="item.name"
+                :label="`${item.spec || '无规格'} · ${item.quantity ?? '-'} ${item.unit || ''}`"
+              />
+              <div v-if="!extractedItems.length" class="empty-note">未提取到物料条目</div>
+            </div>
+            <van-button
+              class="submit-button primary-button"
+              type="primary"
+              block
+              :disabled="!extractedItems.length"
+              @click="submitBom"
+            >
+              确认提交审核
+            </van-button>
+          </template>
+          <div v-else class="surface preview-placeholder">
+            <strong>等待上传</strong>
+            <span>识别出的物料会在这里预览，确认后进入审核列表。</span>
+          </div>
+        </section>
+      </div>
     </div>
   </div>
 </template>
@@ -144,6 +164,24 @@ async function submitBom() {
   justify-content: center;
   margin-top: 16px;
   padding: 26px 16px;
+}
+
+.mode-section {
+  margin-top: 16px;
+  padding: 14px;
+}
+
+.mode-title {
+  margin-bottom: 12px;
+  color: var(--color-muted);
+  font-size: 16px;
+}
+
+.mode-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 10px;
+  font-size: 16px;
 }
 
 .upload-tabs {
@@ -183,5 +221,43 @@ async function submitBom() {
   border-radius: 8px;
   font-size: 18px;
   font-weight: 850;
+}
+
+.preview-placeholder {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .upload-workspace {
+    display: grid;
+    grid-template-columns: minmax(420px, 520px) minmax(0, 1fr);
+    gap: 22px;
+    align-items: start;
+  }
+
+  .upload-controls,
+  .upload-preview {
+    min-width: 0;
+  }
+
+  .upload-box {
+    width: min(420px, 100%);
+    min-height: 230px;
+  }
+
+  .preview-placeholder {
+    min-height: 320px;
+    display: grid;
+    place-items: center;
+    gap: 8px;
+    padding: 28px;
+    color: var(--color-muted);
+    text-align: center;
+  }
+
+  .preview-placeholder strong {
+    color: var(--color-text);
+    font-size: 22px;
+  }
 }
 </style>

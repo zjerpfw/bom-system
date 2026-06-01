@@ -13,7 +13,7 @@ from sqlalchemy import desc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.openai_client import create_openai_client
+from app.core.openai_client import create_openai_client, extract_text_from_openai_response
 from app.models.bom_item import BomItem
 from app.models.material import Material
 from app.models.missing_material import MissingMaterial
@@ -292,7 +292,7 @@ def llm_judge(raw_name: str, candidates: list[dict], runtime_settings=None) -> M
         ],
         temperature=0,
     )
-    content = response.choices[0].message.content or "{}"
+    content = extract_text_from_openai_response(response) or "{}"
     data = json.loads(strip_markdown_json(content))
     matched_code = data.get("matched_code")
     confidence = float(data.get("confidence") or 0.0)

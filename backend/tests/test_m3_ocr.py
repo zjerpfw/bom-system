@@ -169,3 +169,44 @@ def test_ocr_text_route_returns_friendly_error_when_llm_unavailable(monkeypatch)
     assert response.status_code == 200
     assert response.json()["code"] == 1
     assert "文本提取失败" in response.json()["msg"]
+
+
+def test_rule_extract_bom_from_paddle_table_fragments_without_ai(monkeypatch):
+    from app.services import ocr_service
+
+    def fail_client():
+        raise AssertionError("AI关闭时不应创建OpenAI客户端")
+
+    monkeypatch.setattr(ocr_service, "create_openai_client", fail_client)
+    result = ocr_service.extract_bom_from_ocr_text(
+        [
+            "产品名称:测试夹具",
+            "规格",
+            "序号",
+            "名称",
+            "用量单位",
+            "个",
+            "铜柱",
+            "1",
+            "M3x10",
+            "4",
+            "螺钉",
+            "个",
+            "2",
+            "M6x20",
+            "8",
+            "垫片",
+            "个",
+            "3",
+            "6mm",
+            "8",
+        ],
+        "测试夹具",
+        ai_enabled=False,
+    )
+
+    assert result["items"] == [
+        {"name": "铜柱", "spec": "M3x10", "quantity": 4, "unit": "个", "level": 1, "confidence": 0.58},
+        {"name": "螺钉", "spec": "M6x20", "quantity": 8, "unit": "个", "level": 1, "confidence": 0.58},
+        {"name": "垫片", "spec": "6mm", "quantity": 8, "unit": "个", "level": 1, "confidence": 0.58},
+    ]

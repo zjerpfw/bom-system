@@ -8,16 +8,16 @@
 
 1. 将研发口述、纸质图纸、Excel打印件中的BOM转成结构化数据。
 2. 与ERP物料主数据做命名匹配。
-3. 让研发/审核员在移动端确认。
+3. 让研发/审核员在电脑端为主、手机/平板端为辅进行确认。
 4. 导出ERP可导入的Excel。
 
-项目路径固定在：
+项目当前路径固定在：
 
 ```text
-D:\BOM 智能采集系统\bom-system
+D:\BOM\bom-system
 ```
 
-不要再把文件写到 C 盘旧目录。
+不要再把文件写到 C 盘旧目录，也不要回到 `D:\BOM 智能采集系统\bom-system` 旧路径。
 
 ## 技术栈约束
 
@@ -50,42 +50,42 @@ D:\BOM 智能采集系统\bom-system
 后端：
 
 ```powershell
-cd "D:\BOM 智能采集系统\bom-system\backend"
-.\.venv\Scripts\python.exe -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
+cd "D:\BOM\bom-system\backend"
+.\.build-venv\Scripts\python.exe -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 前端：
 
 ```powershell
-cd "D:\BOM 智能采集系统\bom-system\frontend"
+cd "D:\BOM\bom-system\frontend"
 pnpm dev --host 127.0.0.1 --port 5173
 ```
 
 后端测试：
 
 ```powershell
-cd "D:\BOM 智能采集系统\bom-system"
-.\backend\.venv\Scripts\python.exe -m pytest backend\tests -q
+cd "D:\BOM\bom-system"
+.\backend\.build-venv\Scripts\python.exe -m pytest backend\tests -q
 ```
 
 前端构建：
 
 ```powershell
-cd "D:\BOM 智能采集系统\bom-system\frontend"
+cd "D:\BOM\bom-system\frontend"
 pnpm build
 ```
 
 端到端脚本：
 
 ```powershell
-cd "D:\BOM 智能采集系统\bom-system"
-.\backend\.venv\Scripts\python.exe .\scripts\e2e_test.py
+cd "D:\BOM\bom-system"
+.\backend\.build-venv\Scripts\python.exe .\scripts\e2e_test.py
 ```
 
 Windows便携包打包：
 
 ```powershell
-cd "D:\BOM 智能采集系统\bom-system"
+cd "D:\BOM\bom-system"
 .\scripts\package_windows.ps1 -Version local
 ```
 
@@ -116,7 +116,8 @@ AI增强模式：
 
 - 在前端「设置」页开启。
 - 配置接口地址、API Key、聊天模型、向量模型。
-- 中转站必须兼容 `/v1/chat/completions` 和 `/v1/embeddings`。
+- 中转站优先使用 OpenAI 兼容 `/v1/chat/completions` 和 `/v1/embeddings`。
+- 聊天响应解析已兼容 `choices`、`output_text`、Responses API `output` 和纯字符串返回；改 AI 调用时不要重新写死 `.choices[0]`。
 - 聊天模型不能替代 embedding 模型。
 
 不要把真实 API Key 写入仓库。
@@ -127,6 +128,7 @@ AI增强模式：
 - `backend/app/core/config.py`：读取 `.env` 默认配置。
 - `backend/app/core/database.py`：异步数据库引擎、`get_db()`、初始化表。
 - `backend/app/core/paths.py`：源码和EXE打包环境的 `.env`、`data/`、前端静态文件路径适配。
+- `backend/app/core/openai_client.py`：OpenAI兼容客户端和响应文本提取。
 - `backend/app/models/`：数据库模型。
 - `backend/app/api/router.py`：统一注册 API 路由。
 - `backend/app/services/material_service.py`：ERP物料导入、embedding、FAISS索引。
@@ -137,6 +139,8 @@ AI增强模式：
 
 ## 关键前端模块
 
+- `frontend/src/App.vue`：电脑端左侧导航、顶部标题、移动端底部导航。
+- `frontend/src/styles/main.css`：全局主题、桌面响应式布局、Vant提示可见性修复。
 - `frontend/src/api/index.ts`：Axios实例和接口封装。
 - `frontend/src/views/Dashboard.vue`：仪表盘和产品导出入口。
 - `frontend/src/views/ReviewList.vue`：核心审核页。
@@ -165,14 +169,17 @@ EXE便携包运行时放在 `server/data/`。
 - Windows 中文路径下 FAISS 读写已做临时文件兼容，改动时不要破坏。
 - 百度OCR调用有本地免费额度保护，失败调用也按一次预占处理。
 - 测试环境偶尔出现 aiosqlite event loop closed warning；目前测试能通过，不代表功能失败。
-- 前端是手机/平板审核工具，按钮要足够大，最小字号保持 16px 左右。
+- 前端现在是电脑端优先的审核工作台，同时兼容手机/平板拍照上传。
+- 桌面端应保留左侧导航和宽屏分栏；移动端保留底部 TabBar。
+- Vant Toast/Dialog/Notify 必须保证文字可见，避免出现只有提示框没有文字。
+- Vant 主色统一使用 `#1D9E75`，不要让按钮回到默认蓝色。
 
 ## 完成工作前检查
 
 涉及后端逻辑时至少运行：
 
 ```powershell
-.\backend\.venv\Scripts\python.exe -m pytest backend\tests -q
+.\backend\.build-venv\Scripts\python.exe -m pytest backend\tests -q
 ```
 
 涉及前端时至少运行：
@@ -185,11 +192,11 @@ pnpm build
 如果改动 OCR、AI、导出或端到端流程，补跑：
 
 ```powershell
-.\backend\.venv\Scripts\python.exe .\scripts\e2e_test.py
+.\backend\.build-venv\Scripts\python.exe .\scripts\e2e_test.py
 ```
 
 如果改动打包、运行路径或部署说明，补跑：
 
 ```powershell
-.\backend\.venv\Scripts\python.exe -m pytest backend\tests\test_m10_packaging.py -q
+.\backend\.build-venv\Scripts\python.exe -m pytest backend\tests\test_m10_packaging.py -q
 ```

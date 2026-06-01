@@ -1,29 +1,30 @@
-# 项目记忆
+# BOM智能采集系统记忆
 
-最后更新：2026-05-28
+最后更新：2026-06-01
 
 ## 当前状态
 
-项目位于：
+项目当前路径：
 
 ```text
-D:\BOM 智能采集系统\bom-system
+D:\BOM\bom-system
 ```
 
-已经完成从 M1 到 M8 的主体开发，并完成整合测试脚本和图文使用说明。
-已补充 Windows 便携包打包脚本、GitHub Actions 自动构建 EXE 工作流和客户部署环境说明。
+不要再使用 C 盘旧目录，也不要回到 `D:\BOM 智能采集系统\bom-system`。
 
-当前系统可以在没有 OpenAI 可用接口的情况下运行：
+系统已经完成 M1 到 M8 主体开发、端到端测试脚本、图文使用说明、Windows 便携包打包脚本、GitHub Actions 自动构建 EXE 工作流和客户部署说明。
 
-- 默认 `AI_ENABLED=false`。
-- OCR仍可走 PaddleOCR 和规则解析。
-- 表格可在配置百度OCR后走百度表格识别。
-- 物料匹配可走命名对照、精确匹配和本地规则候选。
-- 人工审核、缺失物料、导出 Excel 不依赖 AI。
+当前产品定位调整为：
+
+```text
+电脑端审核工作台优先，手机/平板用于拍照上传和临时审核补充
+```
+
+前端要保持桌面端左侧导航、顶部页面标题、宽屏分栏；移动端继续保留底部 TabBar。
 
 ## 最近关键决策
 
-用户找不到稳定可用的 AI/embedding 中转站接口，因此已将系统优化为：
+用户找不到稳定可用的 AI/embedding 中转站接口，因此系统保持：
 
 ```text
 规则模式优先，AI增强可配置
@@ -31,54 +32,57 @@ D:\BOM 智能采集系统\bom-system
 
 不要拆成两个项目，也不要创建单独的“无AI版本”。统一通过系统配置切换。
 
+`AI_ENABLED=false` 时必须能走规则模式完成：
+
+- ERP物料导入
+- OCR规则提取
+- 命名对照、精确匹配、本地规则候选
+- 人工审核
+- 缺失物料处理
+- Excel导出
+
 ## 系统配置中心
 
-已新增数据库表：
+数据库表：
 
 ```text
 system_settings
 ```
 
-已新增接口：
+接口：
 
 ```text
 GET  /api/settings/system
 POST /api/settings/system
 ```
 
-前端「设置」页已经可以维护：
+前端「设置」页维护：
 
 - AI增强能力开关
 - OpenAI兼容接口地址
 - 接口密钥
 - 聊天模型
-- 向量模型
+- 向量模型和向量供应商
+- 阿里 DashScope 向量配置
+- 百度千帆向量配置
+- 百度OCR App ID / API Key / Secret Key
+- 百度OCR免费额度保护参数
 - 前端请求 API Key
 
-密钥保存后不明文回显。
+密钥保存后不明文回显。数据库 `system_settings` 优先级高于 `.env`，`.env` 只作为默认值。
 
-数据库中的 `system_settings` 优先级高于 `.env`。`.env` 只作为默认值。
-
-## AI中转站测试记录
+## AI和中转站注意事项
 
 用户提供过 fululai.cn 中转站和密钥，只用于临时测试，不能写入项目文件。
 
-已验证：
+曾验证：
 
 ```text
 OPENAI_BASE_URL=https://fululai.cn/v1
 OPENAI_CHAT_MODEL=gpt-5.5
 ```
 
-聊天模型最小请求通过：
-
-```text
-chat_ok=true
-chat_model_returned=gpt-5.5
-chat_content=pong
-```
-
-但 embedding 接口未通过：
+聊天模型最小请求通过，但 embedding 接口当时未通过：
 
 ```text
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small
@@ -86,83 +90,47 @@ embedding_ok=false
 404 page not found
 ```
 
-`gpt-4o-audio-preview` 和 `gpt-4o-realtime-preview` 在该中转站 Chat Completions 最小请求返回 503，不适合作为当前项目主模型。
-
 结论：
 
-- 当前可使用 `gpt-5.5` 做聊天/提取/判断。
-- 语义匹配仍需要可用 `/v1/embeddings` 和 embedding 模型。
+- `gpt-5.5` 可作为聊天/提取/判断模型，前提是中转站继续可用。
+- 语义匹配仍需要可用 embedding 接口和 embedding 模型。
 - 没有 embedding 时保持规则模式。
+- 聊天模型不能替代 embedding 模型。
+
+后端 OpenAI 兼容响应必须通过：
+
+```text
+backend/app/core/openai_client.py
+```
+
+不要重新写死 `response.choices[0]`。中转站可能返回纯字符串、`choices`、`output_text` 或 Responses API `output`，OCR提取和匹配判断都要兼容。
+
+## OCR注意事项
+
+- PaddleOCR 离线模型放在 `offline/paddleocr`。
+- Windows 打包时要继续兼容本地模型目录和中文路径。
+- 百度OCR调用有本地免费额度保护，失败调用也按一次预占处理。
+- 已增加拍照表格增强模式：表格区域裁切、透视矫正、对比度增强后再送百度表格OCR。
+- 强反光、边缘裁切、严重倾斜仍可能导致漏行，应提示用户重新拍清晰照片。
+
+## 前端注意事项
+
+- 前端技术栈固定：Vue 3 + Vite + Vant 4。
+- 系统主色是 `#1D9E75`，Vant primary 按钮不要退回默认蓝色。
+- 全局提示必须可见：Vant Toast/Dialog/Notify 文字颜色、背景和层级要显式控制，不能出现空白提示框。
+- 电脑端布局在 `frontend/src/App.vue` 和 `frontend/src/styles/main.css`。
+- 上传、审核、设置、物料库、缺失物料页都要保持桌面可用，不要只按手机窄屏设计。
 
 ## 已完成模块
 
-### M1 项目初始化 + 数据库
-
-- FastAPI 后端骨架。
-- SQLite + SQLAlchemy async。
-- `materials`、`bom_items`、`name_mapping`、`missing_materials`。
-- 后续新增 `operation_logs`、`system_settings`。
-- CORS、Swagger、统一响应格式。
-
-### M2 ERP物料基准导入
-
-- CSV 导入。
-- 清洗全角半角和空行。
-- code 重复更新。
-- FAISS索引构建和加载。
-- 注意：默认规则模式下构建向量索引会提示需要开启 AI。
-
-### M3 OCR识别服务
-
-- 图片预处理。
-- PaddleOCR本地识别。
-- 百度OCR表格识别。
-- 百度免费额度本地保护。
-- GPT提取和规则提取双模式。
-
-### M4 AI语义匹配引擎
-
-- 精确匹配。
-- 规则候选匹配。
-- embedding + FAISS 匹配。
-- GPT候选判断。
-- 匹配结果写库。
-- 缺失物料队列。
-
-### M5 审核协作接口
-
-- 仪表盘。
-- 审核列表。
-- 批量确认。
-- 手动改派。
-- 命名映射统计。
-- 操作日志。
-- API Key 中间件。
-
-### M6 前端审核界面
-
-- Vue 3 + Vite + Vant 4。
-- Dashboard。
-- ReviewList。
-- Upload。
-- MissingList。
-- Settings。
-
-### M7 BOM导出
-
-- `export_service.py` 生成 4 个 Sheet：
-  - BOM导入表
-  - 待处理项
-  - 需新建物料
-  - 操作日志
-- 导出接口和前端导出按钮。
-
-### M8 语音录入
-
-- `VoiceCapture.vue`。
-- Web Speech API 免费方案。
-- Chrome/Edge最佳。
-- iOS Safari有限支持，降级到文本输入。
+- M1 项目初始化 + 数据库
+- M2 ERP物料基准导入
+- M3 OCR识别服务：PaddleOCR、百度表格、拍照表格增强、规则/AI提取
+- M4 AI语义匹配引擎：精确、规则、embedding、LLM判断、写库
+- M5 审核协作接口：仪表盘、审核列表、批量确认、改派、日志、API Key
+- M6 前端审核界面：Dashboard、ReviewList、Upload、MissingList、Settings、Materials
+- M7 BOM导出：4 Sheet Excel
+- M8 语音录入：Web Speech API 免费方案
 
 ## 重要文件
 
@@ -170,6 +138,7 @@ embedding_ok=false
 backend/main.py
 backend/app/core/config.py
 backend/app/core/database.py
+backend/app/core/openai_client.py
 backend/app/core/paths.py
 backend/app/api/router.py
 backend/app/api/settings.py
@@ -178,10 +147,13 @@ backend/app/services/ocr_service.py
 backend/app/services/match_service.py
 backend/app/services/material_service.py
 backend/app/services/export_service.py
+frontend/src/App.vue
 frontend/src/api/index.ts
+frontend/src/styles/main.css
 frontend/src/views/Settings.vue
 frontend/src/views/ReviewList.vue
 frontend/src/views/Upload.vue
+frontend/src/views/Materials.vue
 docs/USER_GUIDE.md
 docs/PACKAGE_GUIDE.md
 scripts/e2e_test.py
@@ -194,42 +166,33 @@ scripts/package_windows.ps1
 后端测试：
 
 ```powershell
-cd "D:\BOM 智能采集系统\bom-system"
-.\backend\.venv\Scripts\python.exe -m pytest backend\tests -q
-```
-
-最近一次结果：
-
-```text
-38 passed
+cd "D:\BOM\bom-system"
+.\backend\.build-venv\Scripts\python.exe -m pytest backend\tests -q
 ```
 
 前端构建：
 
 ```powershell
-cd "D:\BOM 智能采集系统\bom-system\frontend"
+cd "D:\BOM\bom-system\frontend"
 pnpm build
-```
-
-最近一次结果：构建成功。
-
-设置接口烟测：
-
-```text
-POST /api/settings/system -> 200 0 False gpt-5.5
-GET  /api/settings/system -> 200 0 gpt-5.5
 ```
 
 打包路径测试：
 
 ```powershell
-.\backend\.venv\Scripts\python.exe -m pytest backend\tests\test_m10_packaging.py -q
+.\backend\.build-venv\Scripts\python.exe -m pytest backend\tests\test_m10_packaging.py -q
 ```
 
 本地 Windows 便携包打包：
 
 ```powershell
 .\scripts\package_windows.ps1 -Version local
+```
+
+便携包发布路径在 `release/`，包名模式如：
+
+```text
+bom-system-windows-local-YYYYMMDD-*.zip
 ```
 
 ## 后续优先事项

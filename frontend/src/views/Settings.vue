@@ -19,6 +19,14 @@ const qianfanApiKey = ref("");
 const qianfanBaseUrl = ref("https://qianfan.baidubce.com/v2");
 const qianfanEmbeddingModel = ref("embedding-v1");
 const qianfanApiKeyConfigured = ref(false);
+const baiduOcrAppId = ref("");
+const baiduOcrApiKey = ref("");
+const baiduOcrSecretKey = ref("");
+const baiduOcrApiKeyConfigured = ref(false);
+const baiduOcrSecretKeyConfigured = ref(false);
+const baiduOcrAccountType = ref("personal");
+const baiduOcrFreeQuotaSafetyBuffer = ref("5");
+const baiduOcrTableMonthlyFreeLimit = ref("");
 const loading = ref(false);
 const saving = ref(false);
 
@@ -27,6 +35,10 @@ const runningModeType = computed(() => (aiEnabled.value ? "success" : "warning")
 const secretPlaceholder = computed(() => (apiKeyConfigured.value ? "已配置，留空则不修改" : "未配置"));
 const dashscopeSecretPlaceholder = computed(() => (dashscopeApiKeyConfigured.value ? "已配置，留空则不修改" : "未配置"));
 const qianfanSecretPlaceholder = computed(() => (qianfanApiKeyConfigured.value ? "已配置，留空则不修改" : "未配置"));
+const baiduOcrApiKeyPlaceholder = computed(() => (baiduOcrApiKeyConfigured.value ? "已配置，留空则不修改" : "未配置"));
+const baiduOcrSecretKeyPlaceholder = computed(() =>
+  baiduOcrSecretKeyConfigured.value ? "已配置，留空则不修改" : "未配置",
+);
 
 function saveFrontendApiKey() {
   if (apiKey.value.trim()) {
@@ -53,6 +65,14 @@ async function loadSettings() {
     qianfanApiKeyConfigured.value = data.runtime.qianfan_api_key_configured;
     qianfanBaseUrl.value = data.runtime.qianfan_base_url || "https://qianfan.baidubce.com/v2";
     qianfanEmbeddingModel.value = data.runtime.qianfan_embedding_model || "embedding-v1";
+    baiduOcrAppId.value = data.runtime.baidu_ocr_app_id || "";
+    baiduOcrApiKeyConfigured.value = data.runtime.baidu_ocr_api_key_configured;
+    baiduOcrSecretKeyConfigured.value = data.runtime.baidu_ocr_secret_key_configured;
+    baiduOcrAccountType.value = data.runtime.baidu_ocr_account_type || "personal";
+    baiduOcrFreeQuotaSafetyBuffer.value = String(data.runtime.baidu_ocr_free_quota_safety_buffer ?? 5);
+    baiduOcrTableMonthlyFreeLimit.value = data.runtime.baidu_ocr_table_monthly_free_limit
+      ? String(data.runtime.baidu_ocr_table_monthly_free_limit)
+      : "";
   } catch {
     showFailToast("系统配置加载失败");
   } finally {
@@ -73,6 +93,10 @@ async function saveSystemSettings() {
       DASHSCOPE_EMBEDDING_MODEL: dashscopeEmbeddingModel.value.trim() || "text-embedding-v4",
       QIANFAN_BASE_URL: qianfanBaseUrl.value.trim() || "https://qianfan.baidubce.com/v2",
       QIANFAN_EMBEDDING_MODEL: qianfanEmbeddingModel.value.trim() || "embedding-v1",
+      BAIDU_OCR_APP_ID: baiduOcrAppId.value.trim(),
+      BAIDU_OCR_ACCOUNT_TYPE: baiduOcrAccountType.value,
+      BAIDU_OCR_FREE_QUOTA_SAFETY_BUFFER: baiduOcrFreeQuotaSafetyBuffer.value.trim() || "5",
+      BAIDU_OCR_TABLE_MONTHLY_FREE_LIMIT: baiduOcrTableMonthlyFreeLimit.value.trim(),
       AI_MATCH_MODE: "rule_first",
       OCR_EXTRACT_MODE: "rule_first",
     };
@@ -85,15 +109,31 @@ async function saveSystemSettings() {
     if (qianfanApiKey.value.trim()) {
       settings.QIANFAN_API_KEY = qianfanApiKey.value.trim();
     }
+    if (baiduOcrApiKey.value.trim()) {
+      settings.BAIDU_OCR_API_KEY = baiduOcrApiKey.value.trim();
+    }
+    if (baiduOcrSecretKey.value.trim()) {
+      settings.BAIDU_OCR_SECRET_KEY = baiduOcrSecretKey.value.trim();
+    }
     const data = await updateSystemSettings(settings);
     aiEnabled.value = data.runtime.ai_enabled;
     apiKeyConfigured.value = data.runtime.openai_api_key_configured;
     embeddingProvider.value = data.runtime.embedding_provider;
     dashscopeApiKeyConfigured.value = data.runtime.dashscope_api_key_configured;
     qianfanApiKeyConfigured.value = data.runtime.qianfan_api_key_configured;
+    baiduOcrApiKeyConfigured.value = data.runtime.baidu_ocr_api_key_configured;
+    baiduOcrSecretKeyConfigured.value = data.runtime.baidu_ocr_secret_key_configured;
+    baiduOcrAppId.value = data.runtime.baidu_ocr_app_id || "";
+    baiduOcrAccountType.value = data.runtime.baidu_ocr_account_type || "personal";
+    baiduOcrFreeQuotaSafetyBuffer.value = String(data.runtime.baidu_ocr_free_quota_safety_buffer ?? 5);
+    baiduOcrTableMonthlyFreeLimit.value = data.runtime.baidu_ocr_table_monthly_free_limit
+      ? String(data.runtime.baidu_ocr_table_monthly_free_limit)
+      : "";
     openaiApiKey.value = "";
     dashscopeApiKey.value = "";
     qianfanApiKey.value = "";
+    baiduOcrApiKey.value = "";
+    baiduOcrSecretKey.value = "";
     showSuccessToast("系统配置已保存");
   } catch {
     showFailToast("系统配置保存失败");
@@ -239,6 +279,66 @@ onMounted(loadSettings);
       </section>
 
       <section class="surface settings-section">
+        <div class="section-head">
+          <div>
+            <h2>百度OCR表格识别</h2>
+            <p>老BOM表格截图建议配置此项，系统会按免费额度保护自动切换。</p>
+          </div>
+          <van-tag type="primary" size="large">表格</van-tag>
+        </div>
+        <van-field
+          v-model="baiduOcrAppId"
+          label="App ID"
+          placeholder="百度智能云应用 App ID"
+          clearable
+        />
+        <van-field
+          v-model="baiduOcrApiKey"
+          label="API Key"
+          :placeholder="baiduOcrApiKeyPlaceholder"
+          type="password"
+          clearable
+        />
+        <van-field
+          v-model="baiduOcrSecretKey"
+          label="Secret Key"
+          :placeholder="baiduOcrSecretKeyPlaceholder"
+          type="password"
+          clearable
+        />
+        <div class="provider-panel">
+          <div class="provider-title">账号类型</div>
+          <van-radio-group v-model="baiduOcrAccountType" direction="horizontal">
+            <van-radio name="personal" checked-color="#1D9E75">个人</van-radio>
+            <van-radio name="enterprise" checked-color="#1D9E75">企业</van-radio>
+          </van-radio-group>
+        </div>
+        <van-field
+          v-model="baiduOcrTableMonthlyFreeLimit"
+          label="表格月额度"
+          placeholder="不填则按账号类型默认保护"
+          type="digit"
+          clearable
+        />
+        <van-field
+          v-model="baiduOcrFreeQuotaSafetyBuffer"
+          label="预留次数"
+          placeholder="默认5，避免用尽免费额度"
+          type="digit"
+          clearable
+        />
+        <van-button
+          class="touch-button save-button"
+          type="primary"
+          block
+          :loading="saving"
+          @click="saveSystemSettings"
+        >
+          保存OCR配置
+        </van-button>
+      </section>
+
+      <section class="surface settings-section">
         <h2>前端访问密钥</h2>
         <van-field
           v-model="apiKey"
@@ -323,5 +423,28 @@ onMounted(loadSettings);
 
 .loading {
   margin: 20px 0;
+}
+
+@media (min-width: 900px) {
+  .page-body {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    align-items: start;
+  }
+
+  .settings-section,
+  .link-group {
+    margin-bottom: 0;
+  }
+
+  .settings-section:first-child,
+  .link-group {
+    grid-column: 1 / -1;
+  }
+
+  .button-stack {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>

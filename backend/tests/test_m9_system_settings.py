@@ -98,6 +98,12 @@ def test_settings_api_lists_updates_and_masks_secrets(tmp_path, monkeypatch):
                 "EMBEDDING_PROVIDER": "dashscope",
                 "DASHSCOPE_API_KEY": "dashscope-secret",
                 "DASHSCOPE_EMBEDDING_MODEL": "text-embedding-v4",
+                "BAIDU_OCR_APP_ID": "baidu-app",
+                "BAIDU_OCR_API_KEY": "baidu-api-key",
+                "BAIDU_OCR_SECRET_KEY": "baidu-secret-key",
+                "BAIDU_OCR_ACCOUNT_TYPE": "enterprise",
+                "BAIDU_OCR_FREE_QUOTA_SAFETY_BUFFER": "10",
+                "BAIDU_OCR_TABLE_MONTHLY_FREE_LIMIT": "900",
             },
             "operator": "管理员",
         },
@@ -113,8 +119,16 @@ def test_settings_api_lists_updates_and_masks_secrets(tmp_path, monkeypatch):
     assert data["runtime"]["embedding_provider"] == "dashscope"
     assert data["runtime"]["dashscope_api_key_configured"] is True
     assert data["runtime"]["dashscope_embedding_model"] == "text-embedding-v4"
+    assert data["runtime"]["baidu_ocr_app_id"] == "baidu-app"
+    assert data["runtime"]["baidu_ocr_api_key_configured"] is True
+    assert data["runtime"]["baidu_ocr_secret_key_configured"] is True
+    assert data["runtime"]["baidu_ocr_account_type"] == "enterprise"
+    assert data["runtime"]["baidu_ocr_free_quota_safety_buffer"] == 10
+    assert data["runtime"]["baidu_ocr_table_monthly_free_limit"] == 900
     assert data["items"]["OPENAI_API_KEY"]["value"] == "********"
     assert data["items"]["DASHSCOPE_API_KEY"]["value"] == "********"
+    assert data["items"]["BAIDU_OCR_API_KEY"]["value"] == "********"
+    assert data["items"]["BAIDU_OCR_SECRET_KEY"]["value"] == "********"
     assert data["items"]["OPENAI_CHAT_MODEL"]["value"] == "gpt-5.5"
     main.app.dependency_overrides.clear()
 

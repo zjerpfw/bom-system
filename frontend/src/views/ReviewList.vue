@@ -237,7 +237,7 @@ onMounted(async () => {
 <style scoped>
 .review-toolbar {
   position: sticky;
-  top: 46px;
+  top: 0;
   z-index: 3;
   display: grid;
   grid-template-columns: 1fr auto;
@@ -331,5 +331,65 @@ onMounted(async () => {
   min-height: 48px;
   margin: 14px;
   border-radius: 8px;
+}
+
+@media (max-width: 899px) {
+  .review-toolbar {
+    top: 46px;
+  }
+}
+
+@media (min-width: 900px) {
+  .review-toolbar {
+    width: min(1180px, 100%);
+    grid-template-columns: minmax(260px, 420px) auto 1fr;
+    padding: 0 0 16px;
+    background: var(--color-bg);
+  }
+
+  .review-toolbar :deep(.van-dropdown-menu) {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    box-shadow: none;
+  }
+
+  .batch-button {
+    min-height: 44px;
+    padding: 0 18px;
+  }
+
+  .review-count {
+    width: min(1180px, 100%);
+    padding: 0 0 12px;
+  }
+
+  .review-list {
+    width: min(1180px, 100%);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    padding: 0 0 30px;
+  }
+
+  .review-card {
+    min-height: 290px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .confidence-block {
+    margin-top: auto;
+    padding-top: 18px;
+  }
+
+  .candidate-sheet {
+    width: min(720px, 100vw);
+    margin: 0 auto;
+  }
+}
+
+@media (min-width: 1320px) {
+  .review-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 </style>

@@ -35,6 +35,14 @@ class RuntimeSettings:
     qianfan_api_key: str
     qianfan_base_url: str
     qianfan_embedding_model: str
+    baidu_ocr_app_id: str
+    baidu_ocr_api_key: str
+    baidu_ocr_secret_key: str
+    baidu_ocr_account_type: str
+    baidu_ocr_free_quota_safety_buffer: int
+    baidu_ocr_table_monthly_free_limit: int | None
+    baidu_ocr_general_monthly_free_limit: int | None
+    baidu_ocr_handwriting_monthly_free_limit: int | None
     ai_match_mode: str
     ocr_extract_mode: str
 
@@ -53,6 +61,16 @@ class RuntimeSettings:
         """判断百度千帆密钥是否已配置。"""
         return bool(self.qianfan_api_key)
 
+    @property
+    def baidu_ocr_api_key_configured(self) -> bool:
+        """判断百度OCR API Key是否已配置。"""
+        return bool(self.baidu_ocr_api_key)
+
+    @property
+    def baidu_ocr_secret_key_configured(self) -> bool:
+        """判断百度OCR Secret Key是否已配置。"""
+        return bool(self.baidu_ocr_secret_key)
+
 
 SETTING_DEFINITIONS = {
     "AI_ENABLED": SettingDefinition("AI_ENABLED", "bool", "ai", "是否启用AI增强能力"),
@@ -67,6 +85,22 @@ SETTING_DEFINITIONS = {
     "QIANFAN_API_KEY": SettingDefinition("QIANFAN_API_KEY", "secret", "ai", "百度千帆API Key", True),
     "QIANFAN_BASE_URL": SettingDefinition("QIANFAN_BASE_URL", "string", "ai", "百度千帆接口地址"),
     "QIANFAN_EMBEDDING_MODEL": SettingDefinition("QIANFAN_EMBEDDING_MODEL", "string", "ai", "百度千帆向量模型"),
+    "BAIDU_OCR_APP_ID": SettingDefinition("BAIDU_OCR_APP_ID", "string", "ocr", "百度OCR App ID"),
+    "BAIDU_OCR_API_KEY": SettingDefinition("BAIDU_OCR_API_KEY", "secret", "ocr", "百度OCR API Key", True),
+    "BAIDU_OCR_SECRET_KEY": SettingDefinition("BAIDU_OCR_SECRET_KEY", "secret", "ocr", "百度OCR Secret Key", True),
+    "BAIDU_OCR_ACCOUNT_TYPE": SettingDefinition("BAIDU_OCR_ACCOUNT_TYPE", "string", "ocr", "百度OCR账号类型"),
+    "BAIDU_OCR_FREE_QUOTA_SAFETY_BUFFER": SettingDefinition(
+        "BAIDU_OCR_FREE_QUOTA_SAFETY_BUFFER", "int", "ocr", "百度OCR免费额度保护预留次数"
+    ),
+    "BAIDU_OCR_TABLE_MONTHLY_FREE_LIMIT": SettingDefinition(
+        "BAIDU_OCR_TABLE_MONTHLY_FREE_LIMIT", "int", "ocr", "百度OCR表格识别月度免费额度"
+    ),
+    "BAIDU_OCR_GENERAL_MONTHLY_FREE_LIMIT": SettingDefinition(
+        "BAIDU_OCR_GENERAL_MONTHLY_FREE_LIMIT", "int", "ocr", "百度OCR通用识别月度免费额度"
+    ),
+    "BAIDU_OCR_HANDWRITING_MONTHLY_FREE_LIMIT": SettingDefinition(
+        "BAIDU_OCR_HANDWRITING_MONTHLY_FREE_LIMIT", "int", "ocr", "百度OCR手写识别月度免费额度"
+    ),
     "AI_MATCH_MODE": SettingDefinition("AI_MATCH_MODE", "string", "ai", "物料匹配模式"),
     "OCR_EXTRACT_MODE": SettingDefinition("OCR_EXTRACT_MODE", "string", "ocr", "OCR文本提取模式"),
 }
@@ -86,6 +120,26 @@ def serialize_value(value) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
     return "" if value is None else str(value).strip()
+
+
+def parse_int(value: str | int | None, default: int = 0) -> int:
+    """解析整数配置值。"""
+    if value is None or str(value).strip() == "":
+        return default
+    try:
+        return int(str(value).strip())
+    except ValueError:
+        return default
+
+
+def parse_optional_int(value: str | int | None) -> int | None:
+    """解析可选整数配置值。"""
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        return int(str(value).strip())
+    except ValueError:
+        return None
 
 
 def mask_secret(value: str | None) -> str:
@@ -109,6 +163,14 @@ def build_default_values() -> dict[str, str]:
         "QIANFAN_API_KEY": settings.qianfan_api_key,
         "QIANFAN_BASE_URL": settings.qianfan_base_url,
         "QIANFAN_EMBEDDING_MODEL": settings.qianfan_embedding_model,
+        "BAIDU_OCR_APP_ID": settings.baidu_ocr_app_id,
+        "BAIDU_OCR_API_KEY": settings.baidu_ocr_api_key,
+        "BAIDU_OCR_SECRET_KEY": settings.baidu_ocr_secret_key,
+        "BAIDU_OCR_ACCOUNT_TYPE": settings.baidu_ocr_account_type,
+        "BAIDU_OCR_FREE_QUOTA_SAFETY_BUFFER": serialize_value(settings.baidu_ocr_free_quota_safety_buffer),
+        "BAIDU_OCR_TABLE_MONTHLY_FREE_LIMIT": serialize_value(settings.baidu_ocr_table_monthly_free_limit),
+        "BAIDU_OCR_GENERAL_MONTHLY_FREE_LIMIT": serialize_value(settings.baidu_ocr_general_monthly_free_limit),
+        "BAIDU_OCR_HANDWRITING_MONTHLY_FREE_LIMIT": serialize_value(settings.baidu_ocr_handwriting_monthly_free_limit),
         "AI_MATCH_MODE": "rule_first",
         "OCR_EXTRACT_MODE": "rule_first",
     }
@@ -145,6 +207,16 @@ def build_runtime_settings(values: dict[str, str]) -> RuntimeSettings:
         qianfan_api_key=values.get("QIANFAN_API_KEY", ""),
         qianfan_base_url=values.get("QIANFAN_BASE_URL", "https://qianfan.baidubce.com/v2"),
         qianfan_embedding_model=values.get("QIANFAN_EMBEDDING_MODEL", "embedding-v1"),
+        baidu_ocr_app_id=values.get("BAIDU_OCR_APP_ID", ""),
+        baidu_ocr_api_key=values.get("BAIDU_OCR_API_KEY", ""),
+        baidu_ocr_secret_key=values.get("BAIDU_OCR_SECRET_KEY", ""),
+        baidu_ocr_account_type=(values.get("BAIDU_OCR_ACCOUNT_TYPE", "personal") or "personal").lower(),
+        baidu_ocr_free_quota_safety_buffer=parse_int(values.get("BAIDU_OCR_FREE_QUOTA_SAFETY_BUFFER"), 5),
+        baidu_ocr_table_monthly_free_limit=parse_optional_int(values.get("BAIDU_OCR_TABLE_MONTHLY_FREE_LIMIT")),
+        baidu_ocr_general_monthly_free_limit=parse_optional_int(values.get("BAIDU_OCR_GENERAL_MONTHLY_FREE_LIMIT")),
+        baidu_ocr_handwriting_monthly_free_limit=parse_optional_int(
+            values.get("BAIDU_OCR_HANDWRITING_MONTHLY_FREE_LIMIT")
+        ),
         ai_match_mode=values.get("AI_MATCH_MODE", "rule_first") or "rule_first",
         ocr_extract_mode=values.get("OCR_EXTRACT_MODE", "rule_first") or "rule_first",
     )
@@ -232,6 +304,14 @@ async def serialize_system_settings(db: AsyncSession) -> dict:
             "qianfan_api_key_configured": runtime.qianfan_api_key_configured,
             "qianfan_base_url": runtime.qianfan_base_url,
             "qianfan_embedding_model": runtime.qianfan_embedding_model,
+            "baidu_ocr_app_id": runtime.baidu_ocr_app_id,
+            "baidu_ocr_api_key_configured": runtime.baidu_ocr_api_key_configured,
+            "baidu_ocr_secret_key_configured": runtime.baidu_ocr_secret_key_configured,
+            "baidu_ocr_account_type": runtime.baidu_ocr_account_type,
+            "baidu_ocr_free_quota_safety_buffer": runtime.baidu_ocr_free_quota_safety_buffer,
+            "baidu_ocr_table_monthly_free_limit": runtime.baidu_ocr_table_monthly_free_limit,
+            "baidu_ocr_general_monthly_free_limit": runtime.baidu_ocr_general_monthly_free_limit,
+            "baidu_ocr_handwriting_monthly_free_limit": runtime.baidu_ocr_handwriting_monthly_free_limit,
             "ai_match_mode": runtime.ai_match_mode,
             "ocr_extract_mode": runtime.ocr_extract_mode,
         },
