@@ -228,6 +228,7 @@ async function submitBom() {
                   v-model="fileList"
                   :after-read="handleAfterRead"
                   :max-count="20"
+                  :preview-image="false"
                   multiple
                   accept="image/*"
                   upload-icon="plus"
@@ -260,14 +261,14 @@ async function submitBom() {
             </button>
           </div>
 
-          <section class="a4-frame surface">
+          <section class="image-frame surface">
             <template v-if="currentImageUrl">
               <img :src="currentImageUrl" alt="BOM原图" />
             </template>
-            <div v-else class="a4-placeholder">
+            <div v-else class="image-placeholder">
               <van-icon name="photo-o" size="42" />
               <strong>等待上传图片</strong>
-              <span>上传后会按A4比例显示，方便对照修正物料。</span>
+              <span>上传后会按原图比例完整显示，方便对照修正物料。</span>
             </div>
           </section>
         </section>
@@ -446,24 +447,25 @@ async function submitBom() {
   margin-top: 4px;
 }
 
-.a4-frame {
-  display: grid;
+.image-frame {
+  display: block;
   width: 100%;
-  aspect-ratio: 210 / 297;
-  place-items: center;
-  overflow: hidden;
+  max-height: 72vh;
+  overflow: auto;
   background: #f7faf8;
 }
 
-.a4-frame img {
+.image-frame img {
+  display: block;
   width: 100%;
-  height: 100%;
-  object-fit: contain;
+  height: auto;
   background: #e8ecea;
 }
 
-.a4-placeholder {
+.image-placeholder {
   display: grid;
+  min-height: 320px;
+  place-items: center;
   gap: 8px;
   padding: 24px;
   color: var(--color-muted);
@@ -471,7 +473,7 @@ async function submitBom() {
   font-size: 16px;
 }
 
-.a4-placeholder strong {
+.image-placeholder strong {
   color: var(--color-text);
   font-size: 20px;
 }
