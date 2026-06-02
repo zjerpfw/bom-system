@@ -6,7 +6,7 @@ on:
       include_paddleocr_models:
         description: "同时打包PaddleOCR离线模型，耗时较长"
         required: false
-        default: "false"
+        default: "true"
         type: choice
         options:
           - "false"
@@ -83,7 +83,7 @@ jobs:
           .\scripts\package_source.ps1 -Version $version
 
       - name: Package PaddleOCR models
-        if: github.event_name == 'workflow_dispatch' && inputs.include_paddleocr_models == 'true'
+        if: github.event_name == 'push' || inputs.include_paddleocr_models == 'true'
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}"
