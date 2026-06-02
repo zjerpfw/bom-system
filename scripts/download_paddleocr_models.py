@@ -19,7 +19,7 @@ MODEL_SPECS = [
 
 
 def main() -> None:
-    """下载PaddleOCR中文模型到离线目录。"""
+    """Download PaddleOCR Chinese models to the offline directory."""
     from paddleocr.ppocr.utils.network import maybe_download
 
     MODEL_ROOT.mkdir(parents=True, exist_ok=True)
@@ -27,8 +27,8 @@ def main() -> None:
         maybe_download(str(model_dir), url)
         required_file = model_dir / "inference.pdmodel"
         if not required_file.exists():
-            raise FileNotFoundError(f"模型文件缺失: {required_file}")
-    print(f"PaddleOCR模型已准备到: {MODEL_ROOT}")
+            raise FileNotFoundError(f"PaddleOCR model file is missing: {required_file}")
+    print(f"PaddleOCR models are ready at: {MODEL_ROOT}")
 
 
 if __name__ == "__main__":
