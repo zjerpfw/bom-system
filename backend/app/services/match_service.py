@@ -536,7 +536,7 @@ def build_bom_item(
         product_name=product_name,
         product_code=item.get("product_code"),
         material_code=match_result.matched_code,
-        material_name=match_result.matched_name or item.get("name"),
+        material_name=match_result.matched_name if match_result.matched_code else None,
         raw_name=match_result.raw_name or get_item_raw_name(item),
         quantity=parse_decimal(item.get("quantity")),
         unit=item.get("unit"),

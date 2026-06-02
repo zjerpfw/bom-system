@@ -52,7 +52,7 @@ def configure_review_api_test(tmp_path, monkeypatch, api_key: str = ""):
                         product_name="夹具A",
                         raw_name="螺丝",
                         material_code="M002",
-                        material_name="螺钉",
+                        material_name="螺丝",
                         status="pending",
                         confidence=0.88,
                         match_level="llm",
@@ -113,9 +113,11 @@ def test_review_dashboard_items_mapping_stats_and_logs(tmp_path, monkeypatch):
     assert items_response.status_code == 200
     assert items_data["total"] == 2
     assert items_data["items"][0]["candidates"][0]["code"] == "M002"
+    assert items_data["items"][0]["material_name"] == "螺钉"
     assert items_data["items"][0]["material_spec"] == "M6x20"
     assert items_data["items"][0]["auto_confirmed"] is False
     assert items_data["items"][0]["match_level"] == "llm"
+    assert items_data["items"][1]["material_name"] is None
 
     confirmed_response = client.get("/api/review/items?product_name=夹具A&status=confirmed&page=1&page_size=10")
     confirmed_item = confirmed_response.json()["data"]["items"][0]

@@ -66,7 +66,7 @@ def serialize_review_item(item: BomItem, material_by_code: dict[str, Material] |
         "product_name": item.product_name,
         "product_code": item.product_code,
         "material_code": item.material_code,
-        "material_name": item.material_name,
+        "material_name": material.name if material else None,
         "material_spec": material.spec if material else None,
         "raw_name": item.raw_name,
         "quantity": float(item.quantity) if item.quantity is not None else None,

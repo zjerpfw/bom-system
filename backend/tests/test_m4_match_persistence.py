@@ -80,6 +80,8 @@ async def test_process_extracted_bom_persists_status_mapping_and_missing(persist
 
     assert [item.status for item in bom_items] == ["confirmed", "pending", "pending"]
     assert bom_items[0].material_code == "M001"
+    assert bom_items[2].material_code is None
+    assert bom_items[2].material_name is None
     assert bom_items[1].match_level == "llm"
     assert '"M002"' in (bom_items[1].candidates_json or "")
     assert mappings[0].raw_name == "铜柱"

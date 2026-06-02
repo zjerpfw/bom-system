@@ -83,6 +83,7 @@ function primaryCode(item: ReviewItem) {
 }
 
 function primaryName(item: ReviewItem) {
+  if (!primaryCode(item)) return "";
   return item.material_name || primaryCandidate(item).name || "";
 }
 
