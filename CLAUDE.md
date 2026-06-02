@@ -89,6 +89,17 @@ cd "D:\BOM\bom-system"
 .\scripts\package_windows.ps1 -Version local
 ```
 
+本地打包注意：
+
+- `package_windows.ps1` 会重建 `backend\.build-venv`。如果上次打包中断，目录可能只剩半成品。
+- 脚本已在 `uv venv` 前设置 `UV_VENV_CLEAR=1`，用于允许 uv 覆盖/重建已有虚拟环境，避免 `Create backend build venv failed, exit code: 2`。
+- 如果仍提示无法删除或无法覆盖 `.build-venv`，先关闭正在运行的 `bom-server.exe`、`python.exe`、`uvicorn` 或占用 `backend\.build-venv` 的终端，再重新执行打包。
+- 只想复用已有构建虚拟环境时，可运行：
+
+```powershell
+.\scripts\package_windows.ps1 -Version local -ReuseBuildVenv
+```
+
 ## 配置策略
 
 `.env` 是启动默认值，数据库 `system_settings` 是运行时覆盖值。数据库配置优先于 `.env`。

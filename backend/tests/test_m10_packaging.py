@@ -107,6 +107,14 @@ def test_windows_package_includes_cython_utility_data():
     assert "CppSupport.cpp" in script_text
 
 
+def test_windows_package_allows_uv_to_replace_build_venv():
+    project_dir = Path(__file__).resolve().parents[2]
+    script_text = (project_dir / "scripts" / "package_windows.ps1").read_text(encoding="utf-8")
+
+    assert "UV_VENV_CLEAR" in script_text
+    assert "uv venv $buildVenvDir --python 3.11" in script_text
+
+
 def test_windows_package_includes_paddleocr_dynamic_source_data():
     project_dir = Path(__file__).resolve().parents[2]
     script_text = (project_dir / "scripts" / "package_windows.ps1").read_text(encoding="utf-8")

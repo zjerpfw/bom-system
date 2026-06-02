@@ -84,7 +84,7 @@ if ($ExistingPython -ne "") {
 } else {
     Remove-Item -LiteralPath $buildVenvDir -Recurse -Force -ErrorAction SilentlyContinue
     if (Get-Command uv -ErrorAction SilentlyContinue) {
-        Invoke-Checked "Create backend build venv" { uv venv $buildVenvDir --python 3.11 }
+        Invoke-Checked "Create backend build venv" { $env:UV_VENV_CLEAR = "1"; uv venv $buildVenvDir --python 3.11 }
     } else {
         Invoke-Checked "Create backend build venv" { python -m venv $buildVenvDir }
     }
